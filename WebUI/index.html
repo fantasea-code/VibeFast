@@ -1,0 +1,722 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <title>FastKey UI</title>
+    <style>
+        @font-face {
+            font-family: 'Fira Code';
+            src: url('./fonts/FiraCode-Regular.ttf') format('truetype');
+            font-weight: 400;
+            font-style: normal;
+        }
+
+        @font-face {
+            font-family: 'Fira Code';
+            src: url('./fonts/FiraCode-Bold.ttf') format('truetype');
+            font-weight: 700;
+            font-style: normal;
+        }
+
+        @font-face {
+            font-family: 'Source Han Serif CN';
+            src: url('./fonts/SourceHanSerifCN-Heavy.otf') format('opentype');
+            font-weight: 900;
+            font-style: normal;
+        }
+
+        :root {
+            --bg-color: #f7f7f7;
+            --sidebar-bg: #ececec;
+            --text-main: #111111;
+            --text-muted: #888888;
+            --text-light: #aaaaaa;
+            --border-color: #dcdcdc;
+            --accent-color: #000000;
+            --item-hover: #e0e0e0;
+            --item-active: #ffffff;
+            --font-mono: 'Fira Code', monospace;
+            --font-cjk: 'Source Han Serif CN', serif;
+            --font-family: var(--font-mono), var(--font-cjk);
+            --fs: 13px;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: var(--font-family);
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+            -webkit-font-smoothing: antialiased;
+            font-weight: 900;
+        }
+
+        .sidebar {
+            width: 300px;
+            background-color: var(--sidebar-bg);
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .sidebar-header {
+            padding: 24px 20px 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .app-title {
+            font-size: 18px;
+            font-weight: 700;
+        }
+
+        .refresh-btn {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            padding: 4px;
+            border-radius: 4px;
+        }
+
+        .refresh-btn:hover {
+            background-color: var(--item-hover);
+            color: var(--text-main);
+        }
+
+        .device-list {
+            flex-grow: 1;
+            overflow-y: auto;
+            padding: 0 12px;
+        }
+
+        .device-item {
+            padding: 12px 16px;
+            margin-bottom: 4px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            position: relative;
+        }
+
+        .device-item:hover {
+            background-color: var(--item-hover);
+        }
+
+        .device-item.active {
+            background-color: var(--item-active);
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+        }
+
+        .device-item.active::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 10px;
+            bottom: 10px;
+            width: 3px;
+            background-color: var(--accent-color);
+            border-radius: 0 4px 4px 0;
+        }
+
+        .device-name {
+            font-size: 13px;
+            font-weight: bold;
+            margin-bottom: 4px;
+        }
+
+        .device-vidpid {
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+
+        .main-content {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            background-color: #ffffff;
+        }
+
+        .content-header {
+            padding: 32px 40px 16px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .header-title {
+            font-size: var(--fs);
+            font-weight: 900;
+            color: var(--text-main);
+            margin-bottom: 8px;
+            letter-spacing: 0.5px;
+        }
+
+        .header-subtitle {
+            font-size: var(--fs);
+            color: var(--text-muted);
+        }
+
+        .mapping-area {
+            flex-grow: 1;
+            padding: 32px 40px;
+            overflow-y: auto;
+        }
+
+        .mapping-row {
+            background: #fafafa;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 16px;
+            position: relative;
+            transition: opacity 0.2s;
+        }
+
+        .mapping-row.disabled {
+            opacity: 0.4;
+        }
+
+        .mapping-row:hover {
+            border-color: #bbb;
+        }
+
+        .row-top {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .source-section {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-shrink: 0;
+            background: #f0f0f0;
+            padding: 8px 12px;
+            border-radius: 6px;
+        }
+
+        .label-sm {
+            font-size: 13px;
+            font-weight: 900;
+            color: var(--text-muted);
+            margin-bottom: 6px;
+            letter-spacing: 0.5px;
+        }
+
+        .source-section .label-sm {
+            margin-bottom: 0;
+            color: var(--text-main);
+        }
+
+        .source-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            font-size: 13px;
+            font-family: var(--font-mono);
+            font-weight: 900;
+            border: 2px solid var(--text-main);
+            border-radius: 4px;
+            background: #fff;
+            color: var(--text-main);
+            min-width: 60px;
+            text-align: center;
+        }
+
+        .source-badge.empty {
+            border-style: dashed;
+            color: var(--text-muted);
+            border-color: var(--border-color);
+        }
+
+        .btn-capture {
+            padding: 6px 16px;
+            font-size: 12px;
+            font-family: var(--font-mono);
+            background-color: #fff;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            cursor: pointer;
+            transition: 0.15s;
+            white-space: nowrap;
+        }
+
+        .btn-capture:hover {
+            background-color: #f0f0f0;
+        }
+
+        .btn-capture.capturing {
+            background-color: #000;
+            color: #fff;
+            border-color: #000;
+            animation: pulse 1s infinite;
+        }
+
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 32px;
+            height: 18px;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .2s;
+            border-radius: 18px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 12px;
+            width: 12px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: .2s;
+            border-radius: 50%;
+        }
+
+        input:checked+.slider {
+            background-color: var(--accent-color);
+        }
+
+        input:checked+.slider:before {
+            transform: translateX(14px);
+        }
+
+        .row-arrow {
+            color: var(--text-muted);
+            font-size: 18px;
+            margin: 0 4px;
+            flex-shrink: 0;
+        }
+
+        .row-targets {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 12px;
+        }
+
+        .step-col .label-sm {
+            font-size: 12px;
+        }
+
+        .hotkey-input {
+            width: 100%;
+            padding: 10px 12px;
+            font-size: 13px;
+            font-family: var(--font-mono);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            background-color: #ffffff;
+            box-sizing: border-box;
+            outline: none;
+            transition: 0.15s;
+        }
+
+        .hotkey-input:focus {
+            border-color: var(--accent-color);
+            box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.06);
+        }
+
+        .hotkey-input.listening {
+            background-color: #e8f5e9;
+            border-color: #4caf50;
+        }
+
+        .btn-del {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            font-size: 11px;
+            color: #999;
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 4px 8px;
+        }
+
+        .btn-del:hover {
+            color: #d32f2f;
+        }
+
+        .footer {
+            padding: 16px 40px;
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background-color: #fafafa;
+        }
+
+        .btn-add {
+            background: none;
+            border: none;
+            font-size: 14px;
+            cursor: pointer;
+            font-family: var(--font-family);
+            font-weight: 900;
+        }
+
+        .action-btns {
+            display: flex;
+            gap: 12px;
+        }
+
+        .btn-primary {
+            background-color: var(--accent-color);
+            color: #fff;
+            border: none;
+            padding: 10px 24px;
+            font-size: 14px;
+            font-weight: 900;
+            border-radius: 4px;
+            cursor: pointer;
+            font-family: var(--font-family);
+        }
+
+        .btn-secondary {
+            background-color: #fff;
+            border: 1px solid var(--border-color);
+            padding: 10px 24px;
+            font-size: 14px;
+            font-weight: 900;
+            border-radius: 4px;
+            cursor: pointer;
+            font-family: var(--font-family);
+        }
+
+        @keyframes pulse {
+            0% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.6;
+            }
+
+            100% {
+                opacity: 1;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="sidebar">
+        <div class="sidebar-header">
+            <div class="app-title">VIBE FAST</div>
+            <button class="refresh-btn" onclick="postMsg('refresh:')">刷新</button>
+        </div>
+        <div class="device-list" id="deviceList"></div>
+    </div>
+    <div class="main-content">
+        <div class="content-header">
+            <div class="header-title" id="curDevName">请选择设备</div>
+            <div class="header-subtitle" id="curDevVidPid">VID:xxxx PID:xxxx</div>
+        </div>
+        <div class="mapping-area" id="mappingArea"></div>
+        <div class="footer">
+            <button class="btn-add" onclick="AddRow()">+ 添加映射</button>
+            <div class="action-btns">
+                <button class="btn-secondary" onclick="postMsg('save:'+GetMappingData())">仅保存</button>
+                <button class="btn-primary" onclick="postMsg('saveAndRun:'+GetMappingData())">> 启动拦截</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function postMsg(s) { window.chrome.webview.postMessage(s); }
+        let currentDevice = null;
+        let mappingsData = [];
+
+        // --- 与 AHK 交互的回调函数 ---
+
+        // AHK 传入设备列表
+        function UpdateDeviceList(devicesJSON) {
+            const devices = JSON.parse(devicesJSON);
+            const listEl = document.getElementById('deviceList');
+            listEl.innerHTML = '';
+
+            // 构造一个内部索引便于根据 VID PID 获取名字
+            window.deviceMap = {};
+            devices.forEach(d => window.deviceMap[`${d.vid}_${d.pid}`] = d.name);
+
+            let foundActive = false;
+
+            // 添加“全部映射”选项
+            const allBtn = document.createElement('div');
+            allBtn.className = 'device-item';
+            if (!currentDevice) {
+                allBtn.classList.add('active');
+                foundActive = true;
+            }
+            allBtn.innerHTML = `
+                <div class="device-name">全部映射</div>
+                <div class="device-vidpid">管理所有设备的拦截规则</div>
+            `;
+            allBtn.onclick = () => {
+                document.querySelectorAll('.device-item').forEach(d => d.classList.remove('active'));
+                allBtn.classList.add('active');
+                currentDevice = null;
+                document.getElementById('curDevName').innerText = "全部映射";
+                let total = mappingsData.length;
+                document.getElementById('curDevVidPid').innerText = "共 " + total + " 条规则 (" + devices.length + " 个设备)";
+                postMsg('selectDevice:0,0');
+                RenderMappings();
+            };
+            listEl.appendChild(allBtn);
+
+            devices.forEach(dev => {
+                const el = document.createElement('div');
+                el.className = 'device-item';
+                if (currentDevice && dev.vid == currentDevice.vid && dev.pid == currentDevice.pid) {
+                    el.classList.add('active');
+                    currentDevice = dev;
+                    foundActive = true;
+                }
+
+                let typeStr = "标准设备";
+                if (dev.type === 1) typeStr = "键盘设备";
+                else if (dev.type === 0) typeStr = "鼠标设备";
+                else if (dev.usagePage === 12) typeStr = "多媒体控制";
+
+                el.innerHTML = `
+                    <div class="device-name">${dev.name}</div>
+                    <div class="device-vidpid">VID:0x${dev.vid.toString(16).toUpperCase().padStart(4, '0')} PID:0x${dev.pid.toString(16).toUpperCase().padStart(4, '0')}</div>
+                    <div class="device-vidpid" style="margin-top:2px">${typeStr}</div>
+                `;
+                el.onclick = () => {
+                    document.querySelectorAll('.device-item').forEach(d => d.classList.remove('active'));
+                    el.classList.add('active');
+                    currentDevice = dev;
+                    document.getElementById('curDevName').innerText = dev.name;
+                    document.getElementById('curDevVidPid').innerText = `VID:0x${dev.vid.toString(16).toUpperCase().padStart(4, '0')} PID:0x${dev.pid.toString(16).toUpperCase().padStart(4, '0')}`;
+                    postMsg('selectDevice:' + dev.vid + ',' + dev.pid);
+                    RenderMappings();
+                };
+                listEl.appendChild(el);
+            });
+
+            if (foundActive && currentDevice) {
+                document.getElementById('curDevName').innerText = currentDevice.name;
+                document.getElementById('curDevVidPid').innerText = `VID:0x${currentDevice.vid.toString(16).toUpperCase().padStart(4, '0')} PID:0x${currentDevice.pid.toString(16).toUpperCase().padStart(4, '0')}`;
+            } else if (!currentDevice) {
+                document.getElementById('curDevName').innerText = "全部映射";
+                document.getElementById('curDevVidPid').innerText = "共 " + mappingsData.length + " 条规则 (" + devices.length + " 个设备)";
+            }
+            // 不要在这里 RenderMappings()，因为 loadMappings 可能此时还要跑
+        }
+
+        function LoadMappings(mappingsJSON) {
+            mappingsData = JSON.parse(mappingsJSON);
+            RenderMappings();
+        }
+
+        function SetSourceCapture(index, reportHex, capVid, capPid) {
+            const btn = document.getElementById(`btnCap_${index}`);
+            if (btn) {
+                btn.classList.remove('capturing');
+                btn.innerText = "重新捕获";
+            }
+            if (mappingsData[index]) {
+                mappingsData[index].source = reportHex;
+                if (capVid !== undefined && capPid !== undefined) {
+                    mappingsData[index].vid = capVid;
+                    mappingsData[index].pid = capPid;
+                }
+                RenderMappings();
+            }
+        }
+
+        function RenderMappings() {
+            const area = document.getElementById('mappingArea');
+            area.innerHTML = '';
+            mappingsData.forEach((row, i) => {
+                // 如果当前选了某个设备，且这条规则的 vid pid 不匹配，则不显示
+                if (currentDevice && (row.vid != currentDevice.vid || row.pid != currentDevice.pid)) {
+                    return;
+                }
+
+                const rowEl = document.createElement('div');
+                const isEnabled = (row.enabled !== false);
+                rowEl.className = 'mapping-row' + (isEnabled ? '' : ' disabled');
+
+                // 在全部映射列表里，加入设备标签
+                let devBadgeHtml = "";
+                if (!currentDevice) {
+                    const devName = window.deviceMap[`${row.vid}_${row.pid}`] || `未知设备 (${row.vid}:${row.pid})`;
+                    devBadgeHtml = `<div class="device-vidpid" style="margin-bottom: 8px; color: var(--text-main); font-weight: 900;">[ ${devName} ]</div>`;
+                }
+
+                rowEl.innerHTML = `
+                    <button class="btn-del" onclick="DeleteRow(${i})">×</button>
+                    ${devBadgeHtml}
+                    <div class="row-top">
+                        <div class="source-section">
+                            <div class="label-sm">源信号</div>
+                            <div class="source-badge ${row.source ? '' : 'empty'}">${row.source || '未捕获'}</div>
+                            <button id="btnCap_${i}" class="btn-capture" onclick="StartCapture(${i})">捕获</button>
+                        </div>
+                        <div class="row-arrow">→</div>
+                        <div style="flex:1">
+                            <div class="label-sm" style="margin-bottom:0; color:var(--text-main);">目标快捷键（循环触发）</div>
+                        </div>
+                        <label class="switch" style="margin-left:12px" title="启用/停用映射">
+                            <input type="checkbox" onchange="ToggleEnable(${i}, this.checked)" ${isEnabled ? 'checked' : ''}>
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                    <div class="row-targets">
+                        <div class="step-col">
+                            <div class="label-sm">① 第 1 次</div>
+                            <input type="text" class="hotkey-input" id="hk_${i}_1" value="${row.hk1 || ''}" placeholder="点此录入..." readonly onfocus="StartListenHotkey(${i}, 1)" onblur="StopListenHotkey(${i}, 1)">
+                        </div>
+                        <div class="step-col">
+                            <div class="label-sm">② 第 2 次</div>
+                            <input type="text" class="hotkey-input" id="hk_${i}_2" value="${row.hk2 || ''}" placeholder="空=重置" readonly onfocus="StartListenHotkey(${i}, 2)" onblur="StopListenHotkey(${i}, 2)">
+                        </div>
+                        <div class="step-col">
+                            <div class="label-sm">③ 第 3 次</div>
+                            <input type="text" class="hotkey-input" id="hk_${i}_3" value="${row.hk3 || ''}" placeholder="空=重置" readonly onfocus="StartListenHotkey(${i}, 3)" onblur="StopListenHotkey(${i}, 3)">
+                        </div>
+                    </div>
+                `;
+                area.appendChild(rowEl);
+            });
+
+            // 更新全部映射时的计数器
+            if (!currentDevice) {
+                let devCount = document.querySelectorAll('.device-item').length - 1;
+                document.getElementById('curDevVidPid').innerText = "共 " + mappingsData.length + " 条规则 (" + devCount + " 个设备)";
+            }
+        }
+
+        function AddRow() {
+            let addVid = 0;
+            let addPid = 0;
+            if (currentDevice) {
+                addVid = currentDevice.vid;
+                addPid = currentDevice.pid;
+            }
+            mappingsData.push({ vid: addVid, pid: addPid, source: "", hk1: "", hk2: "", hk3: "", enabled: true });
+            RenderMappings();
+            const area = document.getElementById('mappingArea');
+            area.scrollTop = area.scrollHeight;
+        }
+
+        function ToggleEnable(index, checked) {
+            mappingsData[index].enabled = checked;
+            RenderMappings();
+            // 不自动保存，用户需要点“保存”或“启动”才会写入AHK后端并更新白名单
+        }
+
+        function DeleteRow(index) {
+            mappingsData.splice(index, 1);
+            RenderMappings();
+        }
+
+        function StartCapture(index) {
+            // 重置所有捕获状态
+            document.querySelectorAll('.btn-capture').forEach(b => { b.classList.remove('capturing'); b.innerText = "捕获按键"; });
+            const btn = document.getElementById(`btnCap_${index}`);
+            btn.classList.add('capturing');
+            btn.innerText = "请按下...";
+            postMsg('startCapture:' + index); // 通知 AHK 监听 RawInput
+        }
+
+        // --- 目标热键前端拦截逻辑 ---
+        let listeningInput = null;
+        let activeKeys = new Set();
+
+        function StartListenHotkey(rowIdx, stepIdx) {
+            const input = document.getElementById(`hk_${rowIdx}_${stepIdx}`);
+            input.classList.add('listening');
+            input.value = "请按键 (点外部取消)";
+            listeningInput = { rowIdx, stepIdx, el: input };
+            activeKeys.clear();
+        }
+
+        function StopListenHotkey(rowIdx, stepIdx) {
+            const input = document.getElementById(`hk_${rowIdx}_${stepIdx}`);
+            input.classList.remove('listening');
+            if (input.value === "请按键 (点外部取消)") {
+                input.value = mappingsData[rowIdx][`hk${stepIdx}`] || "";
+            }
+            listeningInput = null;
+        }
+
+        // 全局键盘拦截，用于“点此录入快捷键”
+        document.addEventListener('keydown', (e) => {
+            if (!listeningInput) return;
+            e.preventDefault();
+            e.stopPropagation();
+
+            let mods = [];
+            if (e.ctrlKey) mods.push("Ctrl");
+            if (e.altKey) mods.push("Alt");
+            if (e.shiftKey) mods.push("Shift");
+            if (e.metaKey) mods.push("Win");
+
+            const isModifier = ['Control', 'Alt', 'Shift', 'Meta'].includes(e.key);
+
+            if (!isModifier) {
+                let keyName;
+                if (e.code === 'Space' || e.key === ' ') {
+                    keyName = 'Space';
+                } else if (e.code.startsWith('Key') && e.code.length === 4) {
+                    keyName = e.code.slice(3);
+                } else if (e.code.startsWith('Digit') && e.code.length === 6) {
+                    keyName = e.code.slice(5);
+                } else if (e.key.length === 1) {
+                    keyName = e.key.toUpperCase();
+                } else {
+                    keyName = e.key;
+                }
+
+                mods.push(keyName);
+                const finalStr = mods.join(' + ');
+                listeningInput.el.value = finalStr;
+                mappingsData[listeningInput.rowIdx]['hk' + listeningInput.stepIdx] = finalStr;
+                listeningInput.el.blur();
+            } else {
+                listeningInput.el.value = mods.join(' + ') + ' + ...';
+            }
+        });
+
+        document.addEventListener('keyup', (e) => {
+            if (!listeningInput) return;
+            e.preventDefault();
+            const val = listeningInput.el.value;
+            if (val.endsWith('...') && !e.ctrlKey && !e.altKey && !e.shiftKey && !e.metaKey) {
+                const orig = mappingsData[listeningInput.rowIdx]['hk' + listeningInput.stepIdx] || '';
+                listeningInput.el.value = orig || "请按键 (点外部取消)";
+            }
+        });
+
+        // 供 AHK 获取当前所有数据的接口
+        function GetMappingData() {
+            return JSON.stringify(mappingsData);
+        }
+    </script>
+</body>
+
+</html>
