@@ -1,10 +1,50 @@
-#Requires AutoHotkey v2.0
+﻿#Requires AutoHotkey v2.0
 #SingleInstance Force
 #Warn Unreachable, Off
 Persistent
+;@Ahk2Exe-SetMainIcon app_icon.ico
+TraySetIcon(A_ScriptDir "\app_icon.ico")
+
+; --- 定制化系统原生托盘菜单 ---
+A_IconTip := "VIBE FAST HID 拦截服务"
+A_TrayMenu.Delete() ; 清理掉系统默认的无用英文（如 Suspend, Pause 等）
+A_TrayMenu.Add("✨ 显 示 面 板", (*) => ShowMainGui())
+A_TrayMenu.Add() ; 分割线
+A_TrayMenu.Add("🚀 开机自动启动", ToggleTrayAutoStart)
+A_TrayMenu.Add() ; 分割线
+A_TrayMenu.Add("🔄 重新加载拦截规则", (*) => Reload())
+A_TrayMenu.Add("❌ 完 全 退 出", (*) => ExitApp())
+A_TrayMenu.Default := "✨ 显 示 面 板"
+
+; 在启动时初始化勾选状态
+SetTimer(InitTrayCheck, -100)
+
+InitTrayCheck() {
+    global AutoStartEnabled
+    if (AutoStartEnabled) {
+        A_TrayMenu.Check("🚀 开机自动启动")
+    }
+}
+
+ToggleTrayAutoStart(*) {
+    global AutoStartEnabled
+    AutoStartEnabled := !AutoStartEnabled
+    A_TrayMenu.ToggleCheck("🚀 开机自动启动")
+    SaveAutoStartSetting()
+    ApplyAutoStartSetting()
+}
+
 
 ; 紧急退出热键 (Ctrl+Esc)，防止任何情况下的鼠标/系统卡死
 ^Esc::ExitApp
+
+~Volume_Up::AppendDebugLog("HOTKEY Volume_Up")
+~Volume_Down::AppendDebugLog("HOTKEY Volume_Down")
+~Volume_Mute::AppendDebugLog("HOTKEY Volume_Mute")
+~Media_Play_Pause::AppendDebugLog("HOTKEY Media_Play_Pause")
+~Media_Next::AppendDebugLog("HOTKEY Media_Next")
+~Media_Prev::AppendDebugLog("HOTKEY Media_Prev")
+~Media_Stop::AppendDebugLog("HOTKEY Media_Stop")
 
 #Include <WebView2>
 
@@ -13,7 +53,11 @@ Persistent
 ; ============================================================
 global APP_NAME    := "VIBE FAST"
 global CONFIG_FILE := A_ScriptDir "\config.ini"
+global DEBUG_LOG_FILE := A_ScriptDir "\DevTools\rawinput_trace.log"
+global AUTOSTART_REG_KEY := "HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Run"
+global AUTOSTART_REG_NAME := "FastKey"
 global Paused      := false
+global AutoStartEnabled := true
 
 ; WebView2
 global wvc  := ""   ; Controller
@@ -29,12 +73,24 @@ global ActiveWhitelist := Map()
 ; 捕获
 global IsCapturing  := false
 global CaptureRowIdx := -1
+global CaptureShouldStopHooks := false
+global IsHotkeyCapturing := false
+global HotkeyCaptureRow := -1
+global HotkeyCaptureStep := -1
+global HotkeyCaptureLastCombo := ""
+global HotkeyCaptureBestCombo := ""
+global HotkeyCaptureBestCount := 0
+global HotkeyCaptureSeenInput := false
+global HotkeyCaptureBlockingInput := false
 
 ; 映射
 global Mappings := []
+global LastTriggerAt := Map()
+global MappingDebounceMs := 220
 
 ; 常量
 global WM_INPUT        := 0x00FF
+global WM_APPCOMMAND   := 0x0319
 global RIDEV_INPUTSINK := 0x00000100
 global RID_INPUT       := 0x10000003
 global RIDI_DEVICEINFO := 0x2000000b
@@ -43,6 +99,8 @@ global RIDI_DEVICENAME := 0x20000007
 ; ── 入口与全局变量 ──
 global HooksActive := false
 
+ResetDebugLog()
+OnMessage(WM_APPCOMMAND, HandleAppCommand)
 EnumerateHIDDevices()
 
 ; ★ 第一阶段：绝对不挂载系统钩子，保持 0% 性能占用
@@ -56,6 +114,7 @@ for arg in A_Args {
 
 if (isBackground && FileExist(CONFIG_FILE)) {
     LoadConfig()
+    StartHooks()
     SetupTray()
 } else {
     ShowMainGui()
@@ -203,13 +262,14 @@ OnNavCompleted(sender, args) {
     LoadConfig()
     PushDevices()
     PushMappings()
+    PushSettings()
 }
 
 ; ============================================================
 ;  JS → AHK 通信（WebMessage）
 ; ============================================================
 OnWebMessage(sender, args) {
-    global IsCapturing, CaptureRowIdx, TargetVID, TargetPID, Mappings
+    global IsCapturing, CaptureRowIdx, CaptureShouldStopHooks, HooksActive, TargetVID, TargetPID, Mappings, AutoStartEnabled
 
     msgStr := args.TryGetWebMessageAsString()
     ; 格式: "action:payload"
@@ -231,20 +291,32 @@ OnWebMessage(sender, args) {
         ; 进入捕获状态：临时开启拦截
         IsCapturing := true
         CaptureRowIdx := Integer(payload)
+        CaptureShouldStopHooks := !HooksActive
         StartHooks()
     }
-    else if (action == "save") {
-        ParseAndSaveMappings(payload)
-        StopHooks() ; 仅保存时，卸载钩子
-        MsgBox("配置已保存！", APP_NAME, "Iconi")
+    else if (action == "startHotkeyCapture") {
+        parts := StrSplit(payload, ",")
+        if (parts.Length >= 2)
+            StartHotkeyCapture(Integer(parts[1]), Integer(parts[2]))
     }
-    else if (action == "saveAndRun") {
+    else if (action == "stopHotkeyCapture") {
+        StopHotkeyCapture()
+    }
+    else if (action == "syncConfig") {
         ParseAndSaveMappings(payload)
+        ApplyAutoStartSetting()
+    }
+    else if (action == "run") {
         ; 第二阶段：正式下达系统级的 RawInput 挂钩
         StartHooks()
         WinHide(APP_NAME)
         SetupTray()
         TrayTip("VIBE FAST 已在后台极速拦截运行", APP_NAME)
+    }
+    else if (action == "setAutoStart") {
+        AutoStartEnabled := (payload = "1")
+        SaveAutoStartSetting()
+        ApplyAutoStartSetting()
     }
 }
 
@@ -256,6 +328,57 @@ RunJS(js) {
     if IsObject(core) {
         try core.ExecuteScriptAsync(js)
     }
+}
+
+ResetDebugLog() {
+    global DEBUG_LOG_FILE
+    try FileDelete(DEBUG_LOG_FILE)
+    AppendDebugLog("=== Session " A_Now " ===")
+}
+
+AppendDebugLog(msg) {
+    global DEBUG_LOG_FILE
+    try FileAppend(FormatTime(, "yyyy-MM-dd HH:mm:ss") " | " msg "`r`n", DEBUG_LOG_FILE, "UTF-8")
+}
+
+GetRawDevicePath(hDevice) {
+    pSize := 1024
+    pBuf := Buffer(2048, 0)
+    DllCall("GetRawInputDeviceInfoW", "Ptr", hDevice, "UInt", RIDI_DEVICENAME, "Ptr", pBuf, "UInt*", &pSize)
+    return StrGet(pBuf, "UTF-16")
+}
+
+GetAppCommandName(cmd) {
+    static names := Map(
+        1, "BROWSER_BACKWARD",
+        2, "BROWSER_FORWARD",
+        8, "BACK",
+        9, "FORWARD",
+        10, "REFRESH",
+        11, "STOP",
+        12, "SEARCH",
+        13, "FAVORITES",
+        14, "HOME",
+        15, "VOLUME_MUTE",
+        16, "VOLUME_DOWN",
+        17, "VOLUME_UP",
+        18, "MEDIA_NEXTTRACK",
+        19, "MEDIA_PREVIOUSTRACK",
+        20, "MEDIA_STOP",
+        21, "MEDIA_PLAY_PAUSE",
+        22, "LAUNCH_MAIL",
+        23, "LAUNCH_MEDIA_SELECT",
+        24, "LAUNCH_APP1",
+        25, "LAUNCH_APP2",
+        46, "MIC_ON_OFF_TOGGLE"
+    )
+    return names.Has(cmd) ? names[cmd] : "UNKNOWN"
+}
+
+HandleAppCommand(wParam, lParam, msg, hwnd) {
+    cmd := (lParam >> 16) & 0x7FF
+    device := (lParam >> 24) & 0xF
+    AppendDebugLog("WM_APPCOMMAND cmd=" cmd " name=" GetAppCommandName(cmd) " device=" device " hwnd=" hwnd)
 }
 
 PushDevices() {
@@ -277,8 +400,7 @@ PushMappings() {
     }
     json := "["
     for m in Mappings {
-        src := m.source ? "HID:" RegExReplace(m.source, "(..)", "$1 ") : ""
-        src := Trim(src)
+        src := FormatSourceForUi(m.source)
         pidStr := m.HasOwnProp("pid") ? m.pid : 0
         vidStr := m.HasOwnProp("vid") ? m.vid : 0
         enabled := m.HasOwnProp("enabled") ? m.enabled : true
@@ -286,6 +408,12 @@ PushMappings() {
     }
     json := RTrim(json, ",") "]"
     RunJS("LoadMappings('" EscapeJS(json) "');")
+}
+
+PushSettings() {
+    global AutoStartEnabled
+    json := AutoStartEnabled ? '{""autoStart"":true}' : '{""autoStart"":false}'
+    RunJS("LoadSettings('" EscapeJS(json) "');")
 }
 
 EscapeJS(s) {
@@ -296,19 +424,117 @@ EscapeJS(s) {
     return s
 }
 
+FormatSourceForUi(src) {
+    src := NormalizeMappingSource(src)
+    if (src = "")
+        return ""
+    if InStr(src, ":")
+        return src
+    return "HID:" Trim(RegExReplace(src, "(..)", "$1 "))
+}
+
+NormalizeBareHidSource(src) {
+    src := StrUpper(RegExReplace(src, "\s+", ""))
+    while (StrLen(src) > 4 && SubStr(src, -1) = "00")
+        src := SubStr(src, 1, -2)
+    return src
+}
+
+NormalizeMappingSource(src) {
+    src := Trim(src)
+    src := StrReplace(src, "HID:", "")
+    src := RegExReplace(src, "\s+", "")
+    src := StrUpper(src)
+    if (src = "")
+        return ""
+    if !InStr(src, ":")
+        return NormalizeBareHidSource(src)
+    return src
+}
+
+GetSourceMatchScore(mappingSource, reportHex) {
+    mappingSource := NormalizeMappingSource(mappingSource)
+    reportHex := NormalizeMappingSource(reportHex)
+    if (mappingSource = "" || reportHex = "")
+        return 0
+    if (mappingSource = reportHex)
+        return 1000 + StrLen(mappingSource)
+    if InStr(mappingSource, ":") || InStr(reportHex, ":")
+        return 0
+    if (InStr(reportHex, mappingSource) = 1)
+        return 500 + StrLen(mappingSource)
+    if (InStr(mappingSource, reportHex) = 1)
+        return 400 + StrLen(reportHex)
+    return 0
+}
+
+SourcesMatch(mappingSource, reportHex) {
+    return GetSourceMatchScore(mappingSource, reportHex) > 0
+}
+
+BuildMappingKey(m) {
+    return m.vid "|" m.pid "|" NormalizeMappingSource(m.source)
+}
+
+DeduplicateMappings(items) {
+    deduped := []
+    seen := Map()
+    for m in items {
+        key := BuildMappingKey(m)
+        if (key = "")
+            continue
+        if seen.Has(key)
+            deduped[seen[key]] := m
+        else {
+            seen[key] := deduped.Length + 1
+            deduped.Push(m)
+        }
+    }
+    return deduped
+}
+
+IsHidPressPacket(buf, headerSz, dataLen, &reportHex) {
+    reportHex := ""
+    if (dataLen <= 0)
+        return false
+
+    hasActiveUsage := false
+    Loop dataLen {
+        b := NumGet(buf, headerSz + 8 + (A_Index - 1), "UChar")
+        reportHex .= Format("{:02X}", b)
+        if (A_Index > 1 && b != 0)
+            hasActiveUsage := true
+    }
+    return hasActiveUsage
+}
+
+ShouldFireMapping(mappingKey) {
+    global LastTriggerAt, MappingDebounceMs
+    now := A_TickCount
+    last := LastTriggerAt.Has(mappingKey) ? LastTriggerAt[mappingKey] : 0
+    if (last && now - last < MappingDebounceMs) {
+        AppendDebugLog("Debounce skip key=" mappingKey " delta=" (now - last))
+        return false
+    }
+    LastTriggerAt[mappingKey] := now
+    return true
+}
+
 ; ============================================================
 ;  配置读写
 ; ============================================================
 LoadConfig() {
-    global CONFIG_FILE, Mappings, ActiveWhitelist
+    global CONFIG_FILE, Mappings, ActiveWhitelist, AutoStartEnabled
     if !FileExist(CONFIG_FILE) {
         Mappings := []
+        AutoStartEnabled := true
         return
     }
 
     count := Integer(IniRead(CONFIG_FILE, "Mappings", "Count", "0"))
     Mappings := []
     ActiveWhitelist.Clear()
+    AutoStartEnabled := (IniRead(CONFIG_FILE, "Settings", "AutoStart", "1") = "1")
     Loop count {
         sec := "Mapping" A_Index
         m_vidHex := IniRead(CONFIG_FILE, sec, "VID", "0")
@@ -318,18 +544,23 @@ LoadConfig() {
         hk2 := IniRead(CONFIG_FILE, sec, "HK2", "")
         hk3 := IniRead(CONFIG_FILE, sec, "HK3", "")
         enabled := IniRead(CONFIG_FILE, sec, "Enabled", "1")
+        src := NormalizeMappingSource(src)
         if (src != "") {
             vidInt := Integer("0x" m_vidHex)
             pidInt := Integer("0x" m_pidHex)
             Mappings.Push({vid: vidInt, pid: pidInt, source: src, hk1: hk1, hk2: hk2, hk3: hk3, step: 1, enabled: (enabled == "1")})
-            if (enabled == "1")
-                ActiveWhitelist[vidInt "_" pidInt] := true
         }
+    }
+
+    Mappings := DeduplicateMappings(Mappings)
+    for m in Mappings {
+        if (m.enabled)
+            ActiveWhitelist[m.vid "_" m.pid] := true
     }
 }
 
 ParseAndSaveMappings(jsonStr) {
-    global CONFIG_FILE, Mappings, ActiveWhitelist
+    global CONFIG_FILE, Mappings, ActiveWhitelist, AutoStartEnabled
 
     ; 正则解析新增 vid, pid, enabled
     Mappings := []
@@ -338,20 +569,24 @@ ParseAndSaveMappings(jsonStr) {
     ; 我们简单匹配关键字段，不需要强依赖JSON结构顺序
     pattern := "\{" Chr(34) "vid" Chr(34) ":(\d+)," Chr(34) "pid" Chr(34) ":(\d+)," Chr(34) "source" Chr(34) ":" Chr(34) "(.*?)" Chr(34) "," Chr(34) "hk1" Chr(34) ":" Chr(34) "(.*?)" Chr(34) "," Chr(34) "hk2" Chr(34) ":" Chr(34) "(.*?)" Chr(34) "," Chr(34) "hk3" Chr(34) ":" Chr(34) "(.*?)" Chr(34) "," Chr(34) "enabled" Chr(34) ":(true|false)\}"
     while (pos := RegExMatch(jsonStr, pattern, &m, pos)) {
-        src := StrReplace(m[3], "HID:", "")
-        src := RegExReplace(src, "\s+", "")
+        src := NormalizeMappingSource(m[3])
         isEnabled := (m[7] == "true")
         if (src != "") {
             vidInt := Integer(m[1])
             pidInt := Integer(m[2])
             Mappings.Push({vid: vidInt, pid: pidInt, source: src, hk1: m[4], hk2: m[5], hk3: m[6], step: 1, enabled: isEnabled})
-            if (isEnabled)
-                ActiveWhitelist[vidInt "_" pidInt] := true
         }
         pos += m.Len[0]
     }
 
+    Mappings := DeduplicateMappings(Mappings)
+    for m in Mappings {
+        if (m.enabled)
+            ActiveWhitelist[m.vid "_" m.pid] := true
+    }
+
     IniWrite(Mappings.Length, CONFIG_FILE, "Mappings", "Count")
+    IniWrite(AutoStartEnabled ? "1" : "0", CONFIG_FILE, "Settings", "AutoStart")
     for i, m in Mappings {
         sec := "Mapping" i
         IniWrite(Format("{:04X}", m.vid), CONFIG_FILE, sec, "VID")
@@ -364,6 +599,31 @@ ParseAndSaveMappings(jsonStr) {
     }
 }
 
+SaveAutoStartSetting() {
+    global CONFIG_FILE, AutoStartEnabled
+    IniWrite(AutoStartEnabled ? "1" : "0", CONFIG_FILE, "Settings", "AutoStart")
+}
+
+ApplyAutoStartSetting() {
+    global APP_NAME, AutoStartEnabled, AUTOSTART_REG_KEY, AUTOSTART_REG_NAME
+    try {
+        if AutoStartEnabled {
+            RegWrite(GetAutoStartCommand(), "REG_SZ", AUTOSTART_REG_KEY, AUTOSTART_REG_NAME)
+        } else {
+            try RegDelete(AUTOSTART_REG_KEY, AUTOSTART_REG_NAME)
+        }
+    }
+    catch Error as err {
+        MsgBox("开机自启动设置失败:`n" err.Message, APP_NAME, "Iconx")
+    }
+}
+
+GetAutoStartCommand() {
+    if A_IsCompiled
+        return Chr(34) A_ScriptFullPath Chr(34) " /background"
+    return Chr(34) A_AhkPath Chr(34) " " Chr(34) A_ScriptFullPath Chr(34) " /background"
+}
+
 ; ============================================================
 ;  RawInput
 ; ============================================================
@@ -374,6 +634,7 @@ EnumerateHIDDevices() {
     structSize := A_PtrSize == 8 ? 16 : 8
     numDev := 0
     DllCall("GetRawInputDeviceList", "Ptr", 0, "UInt*", &numDev, "UInt", structSize)
+    AppendDebugLog("Enumerate start numDev=" numDev)
     if (numDev == 0)
         return
     buf := Buffer(structSize * numDev, 0)
@@ -389,25 +650,28 @@ EnumerateHIDDevices() {
         vid := NumGet(info, 8, "UInt")
         pid := NumGet(info, 12, "UInt")
         uPage := NumGet(info, 20, "UShort")
-        if (vid == 0 && pid == 0)
+        devPath := GetRawDevicePath(hDevice)
+        if (vid == 0 && pid == 0) {
+            AppendDebugLog("Skip device type=" type " usagePage=" uPage " vid=0 pid=0 path=" devPath)
             continue
+        }
         DeviceHandleMap[hDevice] := {vid: vid, pid: pid, type: type}
         k := Format("{:04X}_{:04X}", vid, pid)
-        if seen.Has(k)
+        if seen.Has(k) {
+            AppendDebugLog("Duplicate device vid=" Format("{:04X}", vid) " pid=" Format("{:04X}", pid) " path=" devPath)
             continue
+        }
         seen[k] := true
         pname := GetProductName(hDevice)
         if (!pname)
             pname := Format("HID ({:04X}:{:04X})", vid, pid)
+        AppendDebugLog("Device type=" type " usagePage=" uPage " vid=" Format("{:04X}", vid) " pid=" Format("{:04X}", pid) " name=" pname " path=" devPath)
         HIDDevices.Push({vid: vid, pid: pid, name: pname, usagePage: uPage})
     }
 }
 
 GetProductName(hDevice) {
-    pSize := 1024
-    pBuf := Buffer(2048, 0)
-    DllCall("GetRawInputDeviceInfoW", "Ptr", hDevice, "UInt", RIDI_DEVICENAME, "Ptr", pBuf, "UInt*", &pSize)
-    devPath := StrGet(pBuf, "UTF-16")
+    devPath := GetRawDevicePath(hDevice)
     if (!devPath)
         return ""
 
@@ -555,7 +819,7 @@ StopHooks() {
         NumPut("UShort", item.up, rid, offset)
         NumPut("UShort", item.u,  rid, offset + 2)
         NumPut("UInt", 0x00000001, rid, offset + 4) ; RIDEV_REMOVE
-        NumPut("Ptr", hwnd, rid, offset + 8)
+        NumPut("Ptr", 0, rid, offset + 8)
     }
     
     DllCall("RegisterRawInputDevices", "Ptr", rid, "UInt", usages.Length, "UInt", cbSize)
@@ -564,16 +828,6 @@ StopHooks() {
 ; ============================================================
 ;  音量补偿机制（不依赖 Hook 时序，映射触发后自动撤销音量变化）
 ; ============================================================
-global SavedVolumeLevel := -1
-
-RestoreVolume() {
-    global SavedVolumeLevel
-    if (SavedVolumeLevel >= 0) {
-        try SoundSetVolume(SavedVolumeLevel)
-        SavedVolumeLevel := -1
-    }
-}
-
 ; ============================================================
 ;  WM_INPUT 核心拦截
 ; ============================================================
@@ -637,16 +891,7 @@ HandleRawInput(wParam, lParam, msg, hwnd) {
         sizeHid := NumGet(buf, headerSz, "UInt")
         countHid := NumGet(buf, headerSz + 4, "UInt")
         dataLen := sizeHid * countHid
-        if (dataLen <= 0)
-            return
-
-        ; 第一个字节是 ReportId，第二个字节通常是按钮状态
-        Loop dataLen {
-            b := NumGet(buf, headerSz + 8 + (A_Index - 1), "UChar")
-            reportHex .= Format("{:02X}", b)
-            if (A_Index == 2 && b != 0)
-                isPress := true
-        }
+        isPress := IsHidPressPacket(buf, headerSz, dataLen, &reportHex)
         fmtHex := "HID:" RegExReplace(reportHex, "(..)", "$1 ")
         fmtHex := Trim(fmtHex)
 
@@ -674,14 +919,19 @@ HandleRawInput(wParam, lParam, msg, hwnd) {
     if (!isPress)
         return
 
+    if (InStr(fmtHex, "K:") || InStr(fmtHex, "HID:"))
+        AppendDebugLog("Event type=" type " vid=" Format("{:04X}", vid) " pid=" Format("{:04X}", pid) " source=" fmtHex)
+
     ; --- 分流处理 ---
     if (IsCapturing && CaptureRowIdx >= 0) {
         IsCapturing := false
         RunJS("SetSourceCapture(" CaptureRowIdx ",'" fmtHex "', " vid ", " pid ");")
-        ; 捕获完毕后卸载全局钩子
-        StopHooks()
+        ; 只回收这次临时开启的钩子，不影响本来就在运行的拦截
+        if (CaptureShouldStopHooks)
+            StopHooks()
         PushDevices()
         CaptureRowIdx := -1
+        CaptureShouldStopHooks := false
         return
     }
 
@@ -689,52 +939,263 @@ HandleRawInput(wParam, lParam, msg, hwnd) {
         return
 
     ; 极其精准的循环映射匹配
-    for m in Mappings {
-        if (m.enabled && m.vid == vid && m.pid == pid && m.source == reportHex) {
-            targetHK := ""
-            if (m.step == 1)
-                targetHK := m.hk1
-            else if (m.step == 2)
-                targetHK := m.hk2
-            else if (m.step == 3)
-                targetHK := m.hk3
-
-            if (targetHK == "") {
-                m.step := 1
-                targetHK := m.hk1
-            }
-
-            if (targetHK != "") {
-                ; 音量补偿：先记住当前音量，防止设备的原生音量键改变系统音量
-                global SavedVolumeLevel
-                try SavedVolumeLevel := SoundGetVolume()
-                SendMappedHotkey(targetHK)
-                ; 100ms 后自动恢复音量（足够让系统音量变化完成后再撤消）
-                SetTimer(RestoreVolume, -100)
-            }
-
-            m.step++
-            if (m.step > 3)
-                m.step := 1
-            return
+    bestIdx := 0
+    bestScore := 0
+    loop Mappings.Length {
+        m := Mappings[A_Index]
+        if !(m.enabled && m.vid == vid && m.pid == pid)
+            continue
+        score := GetSourceMatchScore(m.source, reportHex)
+        if (score > bestScore) {
+            bestScore := score
+            bestIdx := A_Index
         }
     }
+
+    if (bestIdx = 0)
+    {
+        AppendDebugLog("No mapping match vid=" Format("{:04X}", vid) " pid=" Format("{:04X}", pid) " source=" fmtHex)
+        return
+    }
+
+    m := Mappings[bestIdx]
+    mappingKey := BuildMappingKey(m)
+    if !ShouldFireMapping(mappingKey)
+        return
+
+    targetHK := ""
+    if (m.step == 1)
+        targetHK := m.hk1
+    else if (m.step == 2)
+        targetHK := m.hk2
+    else if (m.step == 3)
+        targetHK := m.hk3
+
+    if (targetHK == "") {
+        m.step := 1
+        targetHK := m.hk1
+    }
+
+    if (targetHK != "") {
+        AppendDebugLog("Trigger mapping key=" mappingKey " step=" m.step " hotkey=" targetHK)
+        SendMappedHotkey(targetHK)
+    } else {
+        AppendDebugLog("Trigger mapping key=" mappingKey " step=" m.step " hotkey=<empty>")
+    }
+
+    m.step++
+    if (m.step > 3)
+        m.step := 1
 }
 
 ; ============================================================
-;  发送快捷键（将 "Ctrl + H" 转为 AHK 格式 "^h"）
+;  发送快捷键
 ; ============================================================
+NormalizeHotkeyToken(token) {
+    token := Trim(token)
+    static aliases := Map(
+        "CONTROL", "Ctrl",
+        "CTRL", "Ctrl",
+        "ALT", "Alt",
+        "SHIFT", "Shift",
+        "WIN", "Win",
+        "WINDOWS", "Win",
+        "SPACE", "Space",
+        "ESC", "Escape",
+        "ESCAPE", "Escape",
+        "ENTER", "Enter",
+        "RETURN", "Enter",
+        "BACKSPACE", "Backspace",
+        "DELETE", "Delete",
+        "DEL", "Delete",
+        "TAB", "Tab",
+        "PGUP", "PgUp",
+        "PGDN", "PgDn",
+        "UP", "Up",
+        "DOWN", "Down",
+        "LEFT", "Left",
+        "RIGHT", "Right",
+        "HOME", "Home",
+        "END", "End"
+    )
+    upper := StrUpper(token)
+    if aliases.Has(upper)
+        return aliases[upper]
+    if RegExMatch(upper, "^F\d{1,2}$")
+        return upper
+    if RegExMatch(upper, "^[A-Z0-9]$")
+        return upper
+    return token
+}
+
+BuildSendKeyName(token) {
+    token := NormalizeHotkeyToken(token)
+    if RegExMatch(token, "^(Ctrl|Alt|Shift|Win)$")
+        return token
+    if RegExMatch(token, "^(Enter|Escape|Space|Tab|Backspace|Delete|Up|Down|Left|Right|Home|End|PgUp|PgDn|F\d{1,2})$")
+        return "{" token "}"
+    return token
+}
+
+GetPressedMainKey() {
+    static keys := [
+        "A","B","C","D","E","F","G","H","I","J","K","L","M",
+        "N","O","P","Q","R","S","T","U","V","W","X","Y","Z",
+        "0","1","2","3","4","5","6","7","8","9",
+        "F1","F2","F3","F4","F5","F6","F7","F8","F9","F10","F11","F12",
+        "F13","F14","F15","F16","F17","F18","F19","F20","F21","F22","F23","F24",
+        "Space","Tab","Enter","Escape","Backspace","Delete","Insert",
+        "Up","Down","Left","Right","Home","End","PgUp","PgDn"
+    ]
+    for key in keys {
+        if GetKeyState(key, "P")
+            return key
+    }
+    return ""
+}
+
+BuildCapturedHotkey() {
+    parts := []
+    if GetKeyState("Ctrl", "P")
+        parts.Push("Ctrl")
+    if GetKeyState("Alt", "P")
+        parts.Push("Alt")
+    if GetKeyState("Shift", "P")
+        parts.Push("Shift")
+    if (GetKeyState("LWin", "P") || GetKeyState("RWin", "P"))
+        parts.Push("Win")
+
+    mainKey := GetPressedMainKey()
+    if (mainKey != "")
+        parts.Push(mainKey)
+
+    if (parts.Length = 0)
+        return ""
+    hotkey := ""
+    for part in parts {
+        if (hotkey != "")
+            hotkey .= " + "
+        hotkey .= part
+    }
+    return hotkey
+}
+
+GetHotkeyPartCount(hotkey) {
+    if (hotkey = "")
+        return 0
+    count := 0
+    for _ in StrSplit(hotkey, "+")
+        count++
+    return count
+}
+
+PushHotkeyCaptureValue(hotkey, done := false) {
+    global HotkeyCaptureRow, HotkeyCaptureStep
+    RunJS("SetHotkeyCapture(" HotkeyCaptureRow ", " HotkeyCaptureStep ", '" EscapeJS(hotkey) "', " (done ? "true" : "false") ");")
+}
+
+PollHotkeyCapture() {
+    global IsHotkeyCapturing, HotkeyCaptureLastCombo, HotkeyCaptureSeenInput
+    global HotkeyCaptureBestCombo, HotkeyCaptureBestCount
+    if !IsHotkeyCapturing
+        return
+
+    combo := BuildCapturedHotkey()
+    if (combo != "") {
+        partCount := GetHotkeyPartCount(combo)
+        HotkeyCaptureSeenInput := true
+        if (partCount > HotkeyCaptureBestCount) {
+            HotkeyCaptureBestCount := partCount
+            HotkeyCaptureBestCombo := combo
+        }
+        if (combo != HotkeyCaptureLastCombo) {
+            HotkeyCaptureLastCombo := combo
+            PushHotkeyCaptureValue(combo, false)
+        }
+        return
+    }
+
+    if (HotkeyCaptureSeenInput && (HotkeyCaptureBestCombo != "" || HotkeyCaptureLastCombo != "")) {
+        finalCombo := HotkeyCaptureBestCount > 1 ? HotkeyCaptureBestCombo : HotkeyCaptureLastCombo
+        PushHotkeyCaptureValue(finalCombo, true)
+        StopHotkeyCapture(true)
+    }
+}
+
+StartHotkeyCapture(rowIdx, stepIdx) {
+    global IsHotkeyCapturing, HotkeyCaptureRow, HotkeyCaptureStep
+    global HotkeyCaptureLastCombo, HotkeyCaptureBestCombo, HotkeyCaptureBestCount, HotkeyCaptureSeenInput
+    global HotkeyCaptureBlockingInput
+    if IsHotkeyCapturing
+        StopHotkeyCapture()
+    HotkeyCaptureRow := rowIdx
+    HotkeyCaptureStep := stepIdx
+    HotkeyCaptureLastCombo := ""
+    HotkeyCaptureBestCombo := ""
+    HotkeyCaptureBestCount := 0
+    HotkeyCaptureSeenInput := false
+    HotkeyCaptureBlockingInput := false
+    try {
+        BlockInput("On")
+        HotkeyCaptureBlockingInput := true
+    }
+    IsHotkeyCapturing := true
+    SetTimer(PollHotkeyCapture, 25)
+}
+
+StopHotkeyCapture(keepValue := false) {
+    global IsHotkeyCapturing, HotkeyCaptureRow, HotkeyCaptureStep
+    global HotkeyCaptureLastCombo, HotkeyCaptureBestCombo, HotkeyCaptureBestCount, HotkeyCaptureSeenInput
+    global HotkeyCaptureBlockingInput
+    SetTimer(PollHotkeyCapture, 0)
+    IsHotkeyCapturing := false
+    if (!keepValue && HotkeyCaptureSeenInput && (HotkeyCaptureBestCombo != "" || HotkeyCaptureLastCombo != "")) {
+        finalCombo := HotkeyCaptureBestCount > 1 ? HotkeyCaptureBestCombo : HotkeyCaptureLastCombo
+        PushHotkeyCaptureValue(finalCombo, true)
+    }
+    if HotkeyCaptureBlockingInput {
+        try BlockInput("Off")
+        HotkeyCaptureBlockingInput := false
+    }
+    HotkeyCaptureRow := -1
+    HotkeyCaptureStep := -1
+    HotkeyCaptureLastCombo := ""
+    HotkeyCaptureBestCombo := ""
+    HotkeyCaptureBestCount := 0
+    HotkeyCaptureSeenInput := false
+}
+
 SendMappedHotkey(str) {
     if (str == "")
         return
-    str := StrReplace(str, "Ctrl + ", "^")
-    str := StrReplace(str, "Alt + ", "!")
-    str := StrReplace(str, "Shift + ", "+")
-    str := StrReplace(str, "Win + ", "#")
-    if RegExMatch(str, "i)^[\^!+#]*(Enter|Escape|Space|Tab|Backspace|Delete|Up|Down|Left|Right|Home|End|PgUp|PgDn|F\d{1,2})$", &km)
-    str := RegExReplace(str, "i)(Enter|Escape|Space|Tab|Backspace|Delete|Up|Down|Left|Right|Home|End|PgUp|PgDn|F\d{1,2})", "{$1}")
-    str := StrReplace(str, " ", "") ; Remove spaces between modifiers and braces
-    try Send(str)
+
+    parts := StrSplit(str, "+")
+    modifiers := []
+    mainKey := ""
+
+    for rawPart in parts {
+        token := NormalizeHotkeyToken(rawPart)
+        if (token = "")
+            continue
+        if RegExMatch(token, "^(Ctrl|Alt|Shift|Win)$")
+            modifiers.Push(token)
+        else if (mainKey = "")
+            mainKey := token
+    }
+
+    if (mainKey = "" && modifiers.Length = 0)
+        return
+
+    try {
+        for modifier in modifiers
+            SendEvent("{" modifier " down}")
+        if (mainKey != "")
+            SendEvent(BuildSendKeyName(mainKey))
+        AppendDebugLog("Send hotkey raw=" str " main=" mainKey " modifiers=" modifiers.Length)
+    } finally {
+        Loop modifiers.Length
+            SendEvent("{" modifiers[modifiers.Length - A_Index + 1] " up}")
+    }
 }
 
 ; ============================================================
