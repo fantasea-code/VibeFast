@@ -2,6 +2,43 @@
 
 VIBE FAST is a desktop utility for mapping HID device buttons to custom hotkeys.
 
+## 中文说明
+
+VIBE FAST 是一个桌面工具，用来把 HID 设备按钮映射成自定义快捷键。
+
+### 当前支持范围
+
+- 接收器 / USB HID 模式是当前主支持路径，稳定性最好。
+- 蓝牙设备只有在 Windows 把它暴露成标准 HID 输入时，才比较容易被识别。
+- 配置修改会自动保存。
+- 开机自启动使用当前用户的 `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`。
+
+### 当前已知限制
+
+- `RawInput` 能识别输入来源，但不能真正吞掉系统原始媒体键行为。
+- 像 `Alt + Space` 这样的系统保留快捷键，可能会被 Windows 优先处理。
+- 有些蓝牙设备会以音频 / 免提控制方式接入系统，而不是标准输入设备，这种情况下 VIBE FAST 通常看不到按钮事件。
+
+### 重要文件
+
+- 主入口：`F:\CODE\FastKey\VibeFast.ahk`
+- 前端：`F:\CODE\FastKey\WebUI\index.html`
+- 配置：`F:\CODE\FastKey\config.ini`
+- 调试日志：`F:\CODE\FastKey\DevTools\rawinput_trace.log`
+- 安装脚本：`F:\CODE\FastKey\VibeFastSetup.iss`
+
+### 打包方式
+
+1. 使用 AutoHotkey v2 将 `VibeFast.ahk` 编译成 `VibeFast.exe`
+2. 用 Inno Setup 打开 `VibeFastSetup.iss`
+3. 生成安装包
+
+### 备注
+
+- 映射改动默认自动保存。
+- `启动拦截` 只负责启动后台拦截流程。
+- 文本文件建议统一使用 UTF-8，避免不明确编码的覆盖写入。
+
 ## Current scope
 
 - Stable receiver / USB HID mapping is the main supported path.
