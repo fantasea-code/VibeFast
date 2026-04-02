@@ -1,479 +1,835 @@
-﻿<!DOCTYPE html>
-<html lang="zh-CN">
-
-<head>
-    <meta charset="UTF-8">
-    <title>FastKey UI</title>
-    <style>
-        @font-face {
-            font-family: 'Fira Code';
-            src: url('./fonts/FiraCode-Regular.ttf') format('truetype');
-            font-weight: 400;
-            font-style: normal;
-        }
-
-        @font-face {
-            font-family: 'Fira Code';
-            src: url('./fonts/FiraCode-Bold.ttf') format('truetype');
-            font-weight: 700;
-            font-style: normal;
-        }
-
-        @font-face {
-            font-family: 'Source Han Serif CN';
-            src: url('./fonts/SourceHanSerifCN-Heavy.otf') format('opentype');
-            font-weight: 900;
-            font-style: normal;
-        }
-
-        :root {
-            --bg-color: #f7f7f7;
-            --sidebar-bg: #ececec;
-            --text-main: #111111;
-            --text-muted: #888888;
-            --text-light: #aaaaaa;
-            --border-color: #dcdcdc;
-            --accent-color: #000000;
-            --item-hover: #e0e0e0;
-            --item-active: #ffffff;
-            --font-mono: 'Fira Code', monospace;
-            --font-cjk: 'Source Han Serif CN', serif;
-            --font-family: var(--font-mono), var(--font-cjk);
-            --fs: 13px;
-        }
-
-        body {
-            margin: 0;
-            padding: 0;
-            font-family: var(--font-family);
-            background-color: var(--bg-color);
-            color: var(--text-main);
-            display: flex;
-            height: 100vh;
-            overflow: hidden;
-            -webkit-font-smoothing: antialiased;
-            font-weight: 900;
-        }
-
-        .sidebar {
-            width: var(--sidebar-width, 280px);
-            flex-shrink: 0;
-            background-color: var(--sidebar-bg);
-            border-right: 1px solid var(--border-color);
-            display: flex;
-            flex-direction: column;
-        }
-
-        .sidebar-header {
-            padding: 24px 20px 16px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-        }
-
-        .app-title {
-            font-size: 18px;
-            font-weight: 700;
-        }
-
-        .refresh-btn {
-            background: none;
-            border: none;
-            color: var(--text-muted);
-            cursor: pointer;
-            padding: 4px;
-            border-radius: 4px;
-        }
-
-        .refresh-btn:hover {
-            background-color: var(--item-hover);
-            color: var(--text-main);
-        }
-
-        .device-list {
-            flex-grow: 1;
-            overflow-y: auto;
-            padding: 0 12px;
-        }
-
-        .device-item {
-            padding: 12px 16px;
-            margin-bottom: 4px;
-            border-radius: 6px;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            position: relative;
-        }
-
-        .device-item:hover {
-            background-color: var(--item-hover);
-        }
-
-        .device-item.active {
-            background-color: var(--item-active);
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-        }
-
-        .device-item.active::before {
-            content: '';
-            position: absolute;
-            left: 0;
-            top: 10px;
-            bottom: 10px;
-            width: 3px;
-            background-color: var(--accent-color);
-            border-radius: 0 4px 4px 0;
-        }
-
-        .device-name {
-            font-size: 13px;
-            font-weight: bold;
-            margin-bottom: 4px;
-        }
-
-        .device-vidpid {
-            font-size: 11px;
-            color: var(--text-muted);
-        }
-
-        .main-content {
-            flex-grow: 1;
-            display: flex;
-            flex-direction: column;
-            background-color: #ffffff;
-        }
-
-        .content-header {
-            padding: 32px 40px 16px;
-            border-bottom: 1px solid var(--border-color);
-        }
-
-        .header-title {
-            font-size: var(--fs);
-            font-weight: 900;
-            color: var(--text-main);
-            margin-bottom: 8px;
-            letter-spacing: 0.5px;
-        }
-
-        .header-subtitle {
-            font-size: var(--fs);
-            color: var(--text-muted);
-        }
-
-        .mapping-area {
-            flex-grow: 1;
-            padding: 32px 40px;
-            overflow-y: auto;
-        }
-
-        .mapping-row {
-            background: #fafafa;
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
-            padding: 20px;
-            margin-bottom: 16px;
-            position: relative;
-            transition: opacity 0.2s;
-        }
-
-        .mapping-row.disabled {
-            opacity: 0.4;
-        }
-
-        .mapping-row:hover {
-            border-color: #bbb;
-        }
-
-        .row-top {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            margin-bottom: 16px;
-        }
-
-        .source-section {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            flex-shrink: 0;
-            background: #f0f0f0;
-            padding: 8px 12px;
-            border-radius: 6px;
-        }
-
-        .label-sm {
-            font-size: 13px;
-            font-weight: 900;
-            color: var(--text-muted);
-            margin-bottom: 6px;
-            letter-spacing: 0.5px;
-        }
-
-        .source-section .label-sm {
-            margin-bottom: 0;
-            color: var(--text-main);
-        }
-
-        .source-badge {
-            display: inline-block;
-            padding: 4px 12px;
-            font-size: 13px;
-            font-family: var(--font-mono);
-            font-weight: 900;
-            border: 2px solid var(--text-main);
-            border-radius: 4px;
-            background: #fff;
-            color: var(--text-main);
-            min-width: 60px;
-            text-align: center;
-        }
-
-        .source-badge.empty {
-            border-style: dashed;
-            color: var(--text-muted);
-            border-color: var(--border-color);
-        }
-
-        .btn-capture {
-            padding: 6px 16px;
-            font-size: 12px;
-            font-family: var(--font-mono);
-            background-color: #fff;
-            border: 1px solid var(--border-color);
-            border-radius: 4px;
-            cursor: pointer;
-            transition: 0.15s;
-            white-space: nowrap;
-        }
-
-        .btn-capture:hover {
-            background-color: #f0f0f0;
-        }
-
-        .btn-capture.capturing {
-            background-color: #000;
-            color: #fff;
-            border-color: #000;
-            animation: pulse 1s infinite;
-        }
-
-        .switch {
-            position: relative;
-            display: inline-block;
-            width: 32px;
-            height: 18px;
-        }
-
-        .switch input {
-            opacity: 0;
-            width: 0;
-            height: 0;
-        }
-
-        .slider {
-            position: absolute;
-            cursor: pointer;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background-color: #ccc;
-            transition: .2s;
-            border-radius: 18px;
-        }
-
-        .slider:before {
-            position: absolute;
-            content: "";
-            height: 12px;
-            width: 12px;
-            left: 3px;
-            bottom: 3px;
-            background-color: white;
-            transition: .2s;
-            border-radius: 50%;
-        }
-
-        input:checked+.slider {
-            background-color: var(--accent-color);
-        }
-
-        input:checked+.slider:before {
-            transform: translateX(14px);
-        }
-
-        .row-arrow {
-            color: var(--text-muted);
-            font-size: 18px;
-            margin: 0 4px;
-            flex-shrink: 0;
-        }
-
-        .row-targets {
-            display: grid;
-            grid-template-columns: 1fr 1fr 1fr;
-            gap: 12px;
-        }
-
-        .step-col .label-sm {
-            font-size: 12px;
-        }
-
-        .hotkey-input {
-            width: 100%;
-            padding: 10px 12px;
-            font-size: 13px;
-            font-family: var(--font-mono);
-            border: 1px solid var(--border-color);
-            border-radius: 6px;
-            background-color: #ffffff;
-            box-sizing: border-box;
-            outline: none;
-            transition: 0.15s;
-        }
-
-        .hotkey-input:focus {
-            border-color: var(--accent-color);
-            box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.06);
-        }
-
-        .hotkey-input.listening {
-            background-color: #e8f5e9;
-            border-color: #4caf50;
-        }
-
-        .btn-del {
-            position: absolute;
-            top: 12px;
-            right: 12px;
-            font-size: 11px;
-            color: #999;
-            background: none;
-            border: none;
-            cursor: pointer;
-            padding: 4px 8px;
-        }
-
-        .btn-del:hover {
-            color: #d32f2f;
-        }
-
-        .footer {
-            padding: 16px 40px;
-            border-top: 1px solid var(--border-color);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            background-color: #fafafa;
-        }
-
-        .btn-add {
-            background: none;
-            border: none;
-            font-size: 14px;
-            cursor: pointer;
-            font-family: var(--font-family);
-            font-weight: 900;
-        }
-
-        .action-btns {
-            display: flex;
-            gap: 12px;
-        }
-
-        .btn-primary {
-            background-color: var(--accent-color);
-            color: #fff;
-            border: none;
-            padding: 10px 24px;
-            font-size: 14px;
-            font-weight: 900;
-            border-radius: 4px;
-            cursor: pointer;
-            font-family: var(--font-family);
-        }
-
-        .btn-secondary {
-            background-color: #fff;
-            border: 1px solid var(--border-color);
-            padding: 10px 24px;
-            font-size: 14px;
-            font-weight: 900;
-            border-radius: 4px;
-            cursor: pointer;
-            font-family: var(--font-family);
-        }
-
-        @keyframes pulse {
-            0% {
-                opacity: 1;
-            }
-
-            50% {
-                opacity: 0.6;
-            }
-
-            100% {
-                opacity: 1;
-            }
-        }
-        .toast-container {
-            position: fixed;
-            top: 24px;
-            left: 50%;
-            transform: translateX(-50%);
-            z-index: 9999;
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-            pointer-events: none;
-        }
-
-        .toast {
-            background-color: #ffffff;
-            color: var(--text-main);
-            background-image: radial-gradient(var(--border-color) 1px, transparent 1px);
-            background-size: 16px 16px;
-            border: 1px solid var(--border-color);
-            padding: 16px 24px;
-            border-radius: 8px;
-            font-size: 13px;
-            font-weight: 700;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            opacity: 0;
-            transform: translateY(-20px);
-            transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
-            max-width: 400px;
-            line-height: 1.6;
-        }
-
-        .toast.show {
-            opacity: 1;
-            transform: translateY(0);
-        }
-
-        .toast-icon {
-            font-size: 18px;
-        }
-        .resizer {
-            width: 4px;
-            background-color: transparent;
-            cursor: col-resize;
-            position: relative;
-            z-index: 10;
-            margin-left: -2px; /* Pull it over the border slightly */
-        }
-        .resizer:hover, .resizer.dragging {
-            background-color: var(--accent-color);
-        }
-    </style>
-</head>
-
-<body>
+<!DOCTYPE html>
+
+<html lang="zh-CN">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <title>FastKey UI</title>
+
+    <style>
+
+        @font-face {
+
+            font-family: 'Fira Code';
+
+            src: url('./fonts/FiraCode-Regular.ttf') format('truetype');
+
+            font-weight: 400;
+
+            font-style: normal;
+
+        }
+
+        @font-face {
+
+            font-family: 'Fira Code';
+
+            src: url('./fonts/FiraCode-Bold.ttf') format('truetype');
+
+            font-weight: 700;
+
+            font-style: normal;
+
+        }
+
+        @font-face {
+
+            font-family: 'Source Han Serif CN';
+
+            src: url('./fonts/SourceHanSerifCN-Heavy.otf') format('opentype');
+
+            font-weight: 900;
+
+            font-style: normal;
+
+        }
+
+        :root {
+
+            --bg-color: #f7f7f7;
+
+            --sidebar-bg: #ececec;
+
+            --text-main: #111111;
+
+            --text-muted: #888888;
+
+            --text-light: #aaaaaa;
+
+            --border-color: #dcdcdc;
+
+            --accent-color: #000000;
+
+            --item-hover: #e0e0e0;
+
+            --item-active: #ffffff;
+
+            --font-mono: 'Fira Code', monospace;
+
+            --font-cjk: 'Source Han Serif CN', serif;
+
+            --font-family: var(--font-mono), var(--font-cjk);
+
+            --fs: 13px;
+
+        }
+
+        body {
+
+            margin: 0;
+
+            padding: 0;
+
+            font-family: var(--font-family);
+
+            background-color: var(--bg-color);
+
+            color: var(--text-main);
+
+            display: flex;
+
+            height: 100vh;
+
+            overflow: hidden;
+
+            -webkit-font-smoothing: antialiased;
+
+            font-weight: 900;
+
+        }
+
+        .sidebar {
+
+            width: var(--sidebar-width, 280px);
+
+            flex-shrink: 0;
+
+            background-color: var(--sidebar-bg);
+
+            border-right: 1px solid var(--border-color);
+
+            display: flex;
+
+            flex-direction: column;
+
+        }
+
+        .sidebar-header {
+
+            padding: 24px 20px 16px;
+
+            display: flex;
+
+            align-items: center;
+
+            justify-content: space-between;
+
+        }
+
+        .app-title {
+
+            font-size: 18px;
+
+            font-weight: 700;
+
+        }
+
+        .refresh-btn {
+
+            background: none;
+
+            border: none;
+
+            color: var(--text-muted);
+
+            cursor: pointer;
+
+            padding: 4px;
+
+            border-radius: 4px;
+
+        }
+
+        .refresh-btn:hover {
+
+            background-color: var(--item-hover);
+
+            color: var(--text-main);
+
+        }
+
+        .device-list {
+
+            flex-grow: 1;
+
+            overflow-y: auto;
+
+            padding: 0 12px;
+
+        }
+
+        .device-item {
+
+            padding: 12px 16px;
+
+            margin-bottom: 4px;
+
+            border-radius: 6px;
+
+            cursor: pointer;
+
+            transition: all 0.2s ease;
+
+            position: relative;
+
+        }
+
+        .device-item:hover {
+
+            background-color: var(--item-hover);
+
+        }
+
+        .device-item.active {
+
+            background-color: var(--item-active);
+
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+
+        }
+
+        .device-item.active::before {
+
+            content: '';
+
+            position: absolute;
+
+            left: 0;
+
+            top: 10px;
+
+            bottom: 10px;
+
+            width: 3px;
+
+            background-color: var(--accent-color);
+
+            border-radius: 0 4px 4px 0;
+
+        }
+
+        .device-name {
+
+            font-size: 13px;
+
+            font-weight: bold;
+
+            margin-bottom: 4px;
+
+        }
+
+        .device-vidpid {
+
+            font-size: 11px;
+
+            color: var(--text-muted);
+
+        }
+
+        .main-content {
+
+            flex-grow: 1;
+
+            display: flex;
+
+            flex-direction: column;
+
+            background-color: #ffffff;
+
+        }
+
+        .content-header {
+
+            padding: 32px 40px 16px;
+
+            border-bottom: 1px solid var(--border-color);
+
+        }
+
+        .header-title {
+
+            font-size: var(--fs);
+
+            font-weight: 900;
+
+            color: var(--text-main);
+
+            margin-bottom: 8px;
+
+            letter-spacing: 0.5px;
+
+        }
+
+        .header-subtitle {
+
+            font-size: var(--fs);
+
+            color: var(--text-muted);
+
+        }
+
+        .mapping-area {
+
+            flex-grow: 1;
+
+            padding: 32px 40px;
+
+            overflow-y: auto;
+
+        }
+
+        .mapping-row {
+
+            background: #fafafa;
+
+            border: 1px solid var(--border-color);
+
+            border-radius: 8px;
+
+            padding: 20px;
+
+            margin-bottom: 16px;
+
+            position: relative;
+
+            transition: opacity 0.2s;
+
+        }
+
+        .mapping-row.disabled {
+
+            opacity: 0.4;
+
+        }
+
+        .mapping-row:hover {
+
+            border-color: #bbb;
+
+        }
+
+        .row-top {
+
+            display: flex;
+
+            align-items: center;
+
+            gap: 12px;
+
+            margin-bottom: 16px;
+
+        }
+
+        .source-section {
+
+            display: flex;
+
+            align-items: center;
+
+            gap: 12px;
+
+            flex-shrink: 0;
+
+            background: #f0f0f0;
+
+            padding: 8px 12px;
+
+            border-radius: 6px;
+
+        }
+
+        .label-sm {
+
+            font-size: 13px;
+
+            font-weight: 900;
+
+            color: var(--text-muted);
+
+            margin-bottom: 6px;
+
+            letter-spacing: 0.5px;
+
+        }
+
+        .source-section .label-sm {
+
+            margin-bottom: 0;
+
+            color: var(--text-main);
+
+        }
+
+        .source-badge {
+
+            display: inline-block;
+
+            padding: 4px 12px;
+
+            font-size: 13px;
+
+            font-family: var(--font-mono);
+
+            font-weight: 900;
+
+            border: 2px solid var(--text-main);
+
+            border-radius: 4px;
+
+            background: #fff;
+
+            color: var(--text-main);
+
+            min-width: 60px;
+
+            text-align: center;
+
+        }
+
+        .source-badge.empty {
+
+            border-style: dashed;
+
+            color: var(--text-muted);
+
+            border-color: var(--border-color);
+
+        }
+
+        .btn-capture {
+
+            padding: 6px 16px;
+
+            font-size: 12px;
+
+            font-family: var(--font-mono);
+
+            background-color: #fff;
+
+            border: 1px solid var(--border-color);
+
+            border-radius: 4px;
+
+            cursor: pointer;
+
+            transition: 0.15s;
+
+            white-space: nowrap;
+
+        }
+
+        .btn-capture:hover {
+
+            background-color: #f0f0f0;
+
+        }
+
+        .btn-capture.capturing {
+
+            background-color: #000;
+
+            color: #fff;
+
+            border-color: #000;
+
+            animation: pulse 1s infinite;
+
+        }
+
+        .switch {
+
+            position: relative;
+
+            display: inline-block;
+
+            width: 32px;
+
+            height: 18px;
+
+        }
+
+        .switch input {
+
+            opacity: 0;
+
+            width: 0;
+
+            height: 0;
+
+        }
+
+        .slider {
+
+            position: absolute;
+
+            cursor: pointer;
+
+            top: 0;
+
+            left: 0;
+
+            right: 0;
+
+            bottom: 0;
+
+            background-color: #ccc;
+
+            transition: .2s;
+
+            border-radius: 18px;
+
+        }
+
+        .slider:before {
+
+            position: absolute;
+
+            content: "";
+
+            height: 12px;
+
+            width: 12px;
+
+            left: 3px;
+
+            bottom: 3px;
+
+            background-color: white;
+
+            transition: .2s;
+
+            border-radius: 50%;
+
+        }
+
+        input:checked+.slider {
+
+            background-color: var(--accent-color);
+
+        }
+
+        input:checked+.slider:before {
+
+            transform: translateX(14px);
+
+        }
+
+        .row-arrow {
+
+            color: var(--text-muted);
+
+            font-size: 18px;
+
+            margin: 0 4px;
+
+            flex-shrink: 0;
+
+        }
+
+        .row-targets {
+
+            display: grid;
+
+            grid-template-columns: 1fr 1fr 1fr;
+
+            gap: 12px;
+
+        }
+
+        .step-col .label-sm {
+
+            font-size: 12px;
+
+        }
+
+        .hotkey-input {
+
+            width: 100%;
+
+            padding: 10px 12px;
+
+            font-size: 13px;
+
+            font-family: var(--font-mono);
+
+            border: 1px solid var(--border-color);
+
+            border-radius: 6px;
+
+            background-color: #ffffff;
+
+            box-sizing: border-box;
+
+            outline: none;
+
+            transition: 0.15s;
+
+        }
+
+        .hotkey-input:focus {
+
+            border-color: var(--accent-color);
+
+            box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.06);
+
+        }
+
+        .hotkey-input.listening {
+
+            background-color: #e8f5e9;
+
+            border-color: #4caf50;
+
+        }
+
+        .btn-del {
+
+            position: absolute;
+
+            top: 12px;
+
+            right: 12px;
+
+            font-size: 11px;
+
+            color: #999;
+
+            background: none;
+
+            border: none;
+
+            cursor: pointer;
+
+            padding: 4px 8px;
+
+        }
+
+        .btn-del:hover {
+
+            color: #d32f2f;
+
+        }
+
+        .footer {
+
+            padding: 16px 40px;
+
+            border-top: 1px solid var(--border-color);
+
+            display: flex;
+
+            justify-content: space-between;
+
+            align-items: center;
+
+            background-color: #fafafa;
+
+        }
+
+        .btn-add {
+
+            background: none;
+
+            border: none;
+
+            font-size: 14px;
+
+            cursor: pointer;
+
+            font-family: var(--font-family);
+
+            font-weight: 900;
+
+        }
+
+        .action-btns {
+
+            display: flex;
+
+            gap: 12px;
+
+        }
+
+        .btn-primary {
+
+            background-color: var(--accent-color);
+
+            color: #fff;
+
+            border: none;
+
+            padding: 10px 24px;
+
+            font-size: 14px;
+
+            font-weight: 900;
+
+            border-radius: 4px;
+
+            cursor: pointer;
+
+            font-family: var(--font-family);
+
+        }
+
+        .btn-secondary {
+
+            background-color: #fff;
+
+            border: 1px solid var(--border-color);
+
+            padding: 10px 24px;
+
+            font-size: 14px;
+
+            font-weight: 900;
+
+            border-radius: 4px;
+
+            cursor: pointer;
+
+            font-family: var(--font-family);
+
+        }
+
+        @keyframes pulse {
+
+            0% {
+
+                opacity: 1;
+
+            }
+
+            50% {
+
+                opacity: 0.6;
+
+            }
+
+            100% {
+
+                opacity: 1;
+
+            }
+
+        }
+
+        .toast-container {
+
+            position: fixed;
+
+            top: 24px;
+
+            left: 50%;
+
+            transform: translateX(-50%);
+
+            z-index: 9999;
+
+            display: flex;
+
+            flex-direction: column;
+
+            gap: 12px;
+
+            pointer-events: none;
+
+        }
+
+        .toast {
+
+            background-color: #ffffff;
+
+            color: var(--text-main);
+
+            background-image: radial-gradient(var(--border-color) 1px, transparent 1px);
+
+            background-size: 16px 16px;
+
+            border: 1px solid var(--border-color);
+
+            padding: 16px 24px;
+
+            border-radius: 8px;
+
+            font-size: 13px;
+
+            font-weight: 700;
+
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+
+            display: flex;
+
+            align-items: center;
+
+            gap: 12px;
+
+            opacity: 0;
+
+            transform: translateY(-20px);
+
+            transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+
+            max-width: 400px;
+
+            line-height: 1.6;
+
+        }
+
+        .toast.show {
+
+            opacity: 1;
+
+            transform: translateY(0);
+
+        }
+
+        .toast-icon {
+
+            font-size: 18px;
+
+        }
+
+        .resizer {
+
+            width: 4px;
+
+            background-color: transparent;
+
+            cursor: col-resize;
+
+            position: relative;
+
+            z-index: 10;
+
+            margin-left: -2px; /* Pull it over the border slightly */
+
+        }
+
+        .resizer:hover, .resizer.dragging {
+
+            background-color: var(--accent-color);
+
+        }
+
+    </style>
+
+</head>
+
+<body>
+
     <div class="toast-container" id="toastContainer"></div>
     <div class="sidebar" id="sidebar">
         <div class="sidebar-header">
@@ -486,315 +842,584 @@
     <div class="main-content">
         <div class="content-header">
             <div class="header-title" id="curDevName">请选择设备</div>
-        <div class="header-subtitle" id="curDevVidPid">VID:xxxx PID:xxxx</div>
-        </div>
-        <div class="mapping-area" id="mappingArea"></div>
-        <div class="footer">
-            <button class="btn-add" onclick="AddRow()">+ 添加映射</button>
-            <div class="action-btns">
-                <button class="btn-primary" onclick="RunInterception()">> 启动拦截</button>
-            </div>
-        </div>
-    </div>
-
-    <script>
-        function postMsg(s) { window.chrome.webview.postMessage(s); }
-
-        let currentDevice = null;
-        let mappingsData = [];
-        let settings = { autoStart: true };
-        let listeningInput = null;
-        let autoSaveTimer = null;
-
-        function ShowWarningToast(msg) {
-            const container = document.getElementById('toastContainer');
-            const toast = document.createElement('div');
-            toast.className = 'toast';
-            toast.innerHTML = `<span class="toast-icon">⚠️</span><span>${msg}</span>`;
-            container.appendChild(toast);
-            requestAnimationFrame(() => {
-                void toast.offsetWidth;
-                toast.classList.add('show');
-            });
-            setTimeout(() => {
-                toast.classList.remove('show');
-                setTimeout(() => toast.remove(), 300);
-            }, 3600);
-        }
-
-        function NormalizeHotkeyString(hotkey) {
-            return (hotkey || '')
-                .split('+')
-                .map(s => s.trim())
-                .filter(Boolean)
-                .join(' + ');
-        }
-
-        function GetReservedHotkeyWarning(hotkey) {
-            const normalized = NormalizeHotkeyString(hotkey);
-            const reservedKeys = [
-                'Alt + Space', 'Alt + F4', 'Alt + Tab',
-                'Ctrl + Esc', 'Win + D', 'Win + E',
-                'Win + L', 'Win + R', 'Win + Tab'
-            ];
-            if (!reservedKeys.includes(normalized)) return '';
-            return `已录入系统保留快捷键 <b>${normalized}</b><br><span style="color:#666;font-size:12px;">Windows 可能会优先拦截它，导致无法按预期触发目标动作。建议换成非系统组合键。</span>`;
-        }
-
-        function QueueAutoSave() {
-            clearTimeout(autoSaveTimer);
-            autoSaveTimer = setTimeout(() => {
-                postMsg('syncConfig:' + GetMappingData());
-            }, 180);
-        }
-
-        function UpdateDeviceList(devicesJSON) {
-            const devices = JSON.parse(devicesJSON);
-            const listEl = document.getElementById('deviceList');
-            listEl.innerHTML = '';
-            window.deviceMap = {};
-            devices.forEach(d => window.deviceMap[`${d.vid}_${d.pid}`] = d.name);
-
-            let foundActive = false;
-
-            const allBtn = document.createElement('div');
-            allBtn.className = 'device-item';
-            if (!currentDevice) {
-                allBtn.classList.add('active');
-                foundActive = true;
-            }
-            allBtn.innerHTML = `
-                <div class="device-name">全部映射</div>
-                <div class="device-vidpid">管理所有设备的拦截规则</div>
-            `;
-            allBtn.onclick = () => {
-                document.querySelectorAll('.device-item').forEach(d => d.classList.remove('active'));
-                allBtn.classList.add('active');
-                currentDevice = null;
-                document.getElementById('curDevName').innerText = '全部映射';
-                document.getElementById('curDevVidPid').innerText = `共 ${mappingsData.length} 条规则 (${devices.length} 个设备)`;
-                postMsg('selectDevice:0,0');
-                RenderMappings();
-            };
-            listEl.appendChild(allBtn);
-
-            devices.forEach(dev => {
-                const el = document.createElement('div');
-                el.className = 'device-item';
-                if (currentDevice && dev.vid == currentDevice.vid && dev.pid == currentDevice.pid) {
-                    el.classList.add('active');
-                    currentDevice = dev;
-                    foundActive = true;
-                }
-
-                let typeStr = '标准设备';
-                if (dev.type === 1) typeStr = '键盘设备';
-                else if (dev.type === 0) typeStr = '鼠标设备';
-                else if (dev.usagePage === 12) typeStr = '多媒体控制';
-
-                el.innerHTML = `
-                    <div class="device-name">${dev.name}</div>
-                    <div class="device-vidpid">VID:0x${dev.vid.toString(16).toUpperCase().padStart(4, '0')} PID:0x${dev.pid.toString(16).toUpperCase().padStart(4, '0')}</div>
-                    <div class="device-vidpid" style="margin-top:2px">${typeStr}</div>
-                `;
-                el.onclick = () => {
-                    document.querySelectorAll('.device-item').forEach(d => d.classList.remove('active'));
-                    el.classList.add('active');
-                    currentDevice = dev;
-                    document.getElementById('curDevName').innerText = dev.name;
-                    document.getElementById('curDevVidPid').innerText = `VID:0x${dev.vid.toString(16).toUpperCase().padStart(4, '0')} PID:0x${dev.pid.toString(16).toUpperCase().padStart(4, '0')}`;
-                    postMsg('selectDevice:' + dev.vid + ',' + dev.pid);
-                    RenderMappings();
-                };
-                listEl.appendChild(el);
-            });
-
-            if (foundActive && currentDevice) {
-                document.getElementById('curDevName').innerText = currentDevice.name;
-                document.getElementById('curDevVidPid').innerText = `VID:0x${currentDevice.vid.toString(16).toUpperCase().padStart(4, '0')} PID:0x${currentDevice.pid.toString(16).toUpperCase().padStart(4, '0')}`;
-            } else if (!currentDevice) {
-                document.getElementById('curDevName').innerText = '全部映射';
-                document.getElementById('curDevVidPid').innerText = `共 ${mappingsData.length} 条规则 (${devices.length} 个设备)`;
-            }
-        }
-
-        function LoadMappings(mappingsJSON) {
-            mappingsData = JSON.parse(mappingsJSON);
-            RenderMappings();
-        }
-
-        function LoadSettings(settingsJSON) {
-            const next = JSON.parse(settingsJSON);
-            settings = { ...settings, ...next };
-            const toggle = document.getElementById('autoStartToggle');
-            if (toggle) toggle.checked = !!settings.autoStart;
-        }
-
-        function SetSourceCapture(index, reportHex, capVid, capPid) {
-            const btn = document.getElementById(`btnCap_${index}`);
-            if (btn) {
-                btn.classList.remove('capturing');
-                btn.innerText = '重新捕获';
-            }
-            if (mappingsData[index]) {
-                mappingsData[index].source = reportHex;
-                if (capVid !== undefined && capPid !== undefined) {
-                    mappingsData[index].vid = capVid;
-                    mappingsData[index].pid = capPid;
-                }
-                RenderMappings();
-                QueueAutoSave();
-            }
-        }
-
-        function SetHotkeyCapture(rowIdx, stepIdx, hotkey, done) {
-            if (mappingsData[rowIdx]) {
-                mappingsData[rowIdx]['hk' + stepIdx] = hotkey || '';
-            }
-            const input = document.getElementById(`hk_${rowIdx}_${stepIdx}`);
-            if (input) {
-                input.value = hotkey || '';
-                if (done) {
-                    input.classList.remove('listening');
-                    input.blur();
-                }
-            }
-            if (done && listeningInput && listeningInput.rowIdx === rowIdx && listeningInput.stepIdx === stepIdx) {
-                listeningInput = null;
-            }
-            if (done) {
-                const warning = GetReservedHotkeyWarning(hotkey || '');
-                if (warning) ShowWarningToast(warning);
-                QueueAutoSave();
-            }
-        }
-
-        function RenderMappings() {
-            const area = document.getElementById('mappingArea');
-            area.innerHTML = '';
-            mappingsData.forEach((row, i) => {
-                if (currentDevice && (row.vid != currentDevice.vid || row.pid != currentDevice.pid)) return;
-
-                const rowEl = document.createElement('div');
-                const isEnabled = (row.enabled !== false);
-                rowEl.className = 'mapping-row' + (isEnabled ? '' : ' disabled');
-
-                let devBadgeHtml = '';
-                if (!currentDevice) {
-                    const devName = window.deviceMap[`${row.vid}_${row.pid}`] || `未知设备 (${row.vid}:${row.pid})`;
-                    devBadgeHtml = `<div class="device-vidpid" style="margin-bottom: 8px; color: var(--text-main); font-weight: 900;">[ ${devName} ]</div>`;
-                }
-
-                rowEl.innerHTML = `
-                    <button class="btn-del" onclick="DeleteRow(${i})">×</button>
-                    ${devBadgeHtml}
-                    <div class="row-top">
-                        <div class="source-section">
-                            <div class="label-sm">源信号</div>
-                            <div class="source-badge ${row.source ? '' : 'empty'}">${row.source || '未捕获'}</div>
-                            <button id="btnCap_${i}" class="btn-capture" onclick="StartCapture(${i})">捕获</button>
-                        </div>
-                        <div class="row-arrow">→</div>
-                        <div style="flex:1">
-                            <div class="label-sm" style="margin-bottom:0; color:var(--text-main);">目标快捷键（循环触发）</div>
-                        </div>
-                        <label class="switch" style="margin-left:12px" title="启用或停用映射">
-                            <input type="checkbox" onchange="ToggleEnable(${i}, this.checked)" ${isEnabled ? 'checked' : ''}>
-                            <span class="slider"></span>
-                        </label>
-                    </div>
-                    <div class="row-targets">
-                        <div class="step-col">
-                            <div class="label-sm">① 第 1 次</div>
-                            <input type="text" class="hotkey-input" id="hk_${i}_1" value="${row.hk1 || ''}" placeholder="点此录入..." readonly onfocus="StartListenHotkey(${i}, 1)" onblur="StopListenHotkey(${i}, 1)">
-                        </div>
-                        <div class="step-col">
-                            <div class="label-sm">② 第 2 次</div>
-                            <input type="text" class="hotkey-input" id="hk_${i}_2" value="${row.hk2 || ''}" placeholder="空=重置" readonly onfocus="StartListenHotkey(${i}, 2)" onblur="StopListenHotkey(${i}, 2)">
-                        </div>
-                        <div class="step-col">
-                            <div class="label-sm">③ 第 3 次</div>
-                            <input type="text" class="hotkey-input" id="hk_${i}_3" value="${row.hk3 || ''}" placeholder="空=重置" readonly onfocus="StartListenHotkey(${i}, 3)" onblur="StopListenHotkey(${i}, 3)">
-                        </div>
-                    </div>
-                `;
-                area.appendChild(rowEl);
-            });
-
-            if (!currentDevice) {
-                let devCount = document.querySelectorAll('.device-item').length - 1;
-                document.getElementById('curDevVidPid').innerText = `共 ${mappingsData.length} 条规则 (${devCount} 个设备)`;
-            }
-        }
-
-        function AddRow() {
-            let addVid = 0;
-            let addPid = 0;
-            if (currentDevice) {
-                addVid = currentDevice.vid;
-                addPid = currentDevice.pid;
-            }
-            mappingsData.push({ vid: addVid, pid: addPid, source: '', hk1: '', hk2: '', hk3: '', enabled: true });
-            RenderMappings();
-            document.getElementById('mappingArea').scrollTop = document.getElementById('mappingArea').scrollHeight;
-            QueueAutoSave();
-        }
-
-        function ToggleEnable(index, checked) {
-            mappingsData[index].enabled = checked;
-            RenderMappings();
-            QueueAutoSave();
-        }
-
-        function DeleteRow(index) {
-            mappingsData.splice(index, 1);
-            RenderMappings();
-            QueueAutoSave();
-        }
-
-        function ToggleAutoStart(checked) {
-            settings.autoStart = checked;
-            postMsg('setAutoStart:' + (checked ? '1' : '0'));
-        }
-
-        function RunInterception() {
-            clearTimeout(autoSaveTimer);
-            postMsg('syncConfig:' + GetMappingData());
-            postMsg('run:');
-        }
-
-        function StartCapture(index) {
-            document.querySelectorAll('.btn-capture').forEach(b => {
-                b.classList.remove('capturing');
-                b.innerText = '捕获按键';
-            });
-            const btn = document.getElementById(`btnCap_${index}`);
-            btn.classList.add('capturing');
-            btn.innerText = '请按下...';
-            postMsg('startCapture:' + index);
-        }
-
-        function StartListenHotkey(rowIdx, stepIdx) {
-            const input = document.getElementById(`hk_${rowIdx}_${stepIdx}`);
-            input.classList.add('listening');
-            input.value = '请按键 (点外部取消)';
-            listeningInput = { rowIdx, stepIdx, el: input };
-            postMsg(`startHotkeyCapture:${rowIdx},${stepIdx}`);
-        }
-
-        function StopListenHotkey(rowIdx, stepIdx) {
-            const input = document.getElementById(`hk_${rowIdx}_${stepIdx}`);
-            input.classList.remove('listening');
-            if (input.value === '请按键 (点外部取消)') {
-                input.value = mappingsData[rowIdx][`hk${stepIdx}`] || '';
-            }
-            postMsg('stopHotkeyCapture:');
-            listeningInput = null;
-        }
-
-        function GetMappingData() {
-            return JSON.stringify(mappingsData);
-        }
-    </script>
-</body>
+        <div class="header-subtitle" id="curDevVidPid">VID:xxxx PID:xxxx</div>
+
+        </div>
+
+        <div class="mapping-area" id="mappingArea"></div>
+
+        <div class="footer">
+
+            <button class="btn-add" onclick="AddRow()">+ 添加映射</button>
+
+            <div class="action-btns">
+
+                <button class="btn-primary" onclick="RunInterception()">> 启动拦截</button>
+
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        function postMsg(s) { window.chrome.webview.postMessage(s); }
+
+        let currentDevice = null;
+        let mappingsData = [];
+        let settings = { autoStart: true };
+        let listeningInput = null;
+        let autoSaveTimer = null;
+
+        // ── Sidebar Resizer ──
+        let isResizing = false;
+        document.addEventListener("DOMContentLoaded", () => {
+            const resizer = document.getElementById('sidebarResizer');
+            const sidebar = document.getElementById('sidebar');
+            if (resizer && sidebar) {
+                resizer.addEventListener('mousedown', (e) => {
+                    isResizing = true;
+                    document.body.style.cursor = 'col-resize';
+                    resizer.classList.add('dragging');
+                    e.preventDefault();
+                });
+                document.addEventListener('mousemove', (e) => {
+                    if (!isResizing) return;
+                    let newWidth = e.clientX;
+                    if (newWidth < 200) newWidth = 200;
+                    if (newWidth > 600) newWidth = 600;
+                    sidebar.style.width = newWidth + 'px';
+                });
+                document.addEventListener('mouseup', () => {
+                    if (isResizing) {
+                        isResizing = false;
+                        document.body.style.cursor = '';
+                        resizer.classList.remove('dragging');
+                        const w = parseInt(sidebar.style.width);
+                        if (w) postMsg('saveSidebarWidth:' + w);
+                    }
+                });
+            }
+        });
+
+        function LoadSettings(settingsJSON) {
+            settings = JSON.parse(settingsJSON);
+            if (settings.sidebarWidth) {
+                const sidebar = document.getElementById('sidebar');
+                if (sidebar) sidebar.style.width = settings.sidebarWidth + 'px';
+            }
+        }
+
+        function ShowWarningToast(msg) {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            toast.className = 'toast';
+            toast.innerHTML = `<span class="toast-icon">⚠️</span><span>${msg}</span>`;
+
+            container.appendChild(toast);
+
+            requestAnimationFrame(() => {
+
+                void toast.offsetWidth;
+
+                toast.classList.add('show');
+
+            });
+
+            setTimeout(() => {
+
+                toast.classList.remove('show');
+
+                setTimeout(() => toast.remove(), 300);
+
+            }, 3600);
+
+        }
+
+        function NormalizeHotkeyString(hotkey) {
+
+            return (hotkey || '')
+
+                .split('+')
+
+                .map(s => s.trim())
+
+                .filter(Boolean)
+
+                .join(' + ');
+
+        }
+
+        function GetReservedHotkeyWarning(hotkey) {
+
+            const normalized = NormalizeHotkeyString(hotkey);
+
+            const reservedKeys = [
+
+                'Alt + Space', 'Alt + F4', 'Alt + Tab',
+
+                'Ctrl + Esc', 'Win + D', 'Win + E',
+
+                'Win + L', 'Win + R', 'Win + Tab'
+
+            ];
+
+            if (!reservedKeys.includes(normalized)) return '';
+
+            return `已录入系统保留快捷键 <b>${normalized}</b><br><span style="color:#666;font-size:12px;">Windows 可能会优先拦截它，导致无法按预期触发目标动作。建议换成非系统组合键。</span>`;
+
+        }
+
+        function QueueAutoSave() {
+
+            clearTimeout(autoSaveTimer);
+
+            autoSaveTimer = setTimeout(() => {
+
+                postMsg('syncConfig:' + GetMappingData());
+
+            }, 180);
+
+        }
+
+        function UpdateDeviceList(devicesJSON) {
+
+            const devices = JSON.parse(devicesJSON);
+
+            const listEl = document.getElementById('deviceList');
+
+            listEl.innerHTML = '';
+
+            window.deviceMap = {};
+
+            devices.forEach(d => window.deviceMap[`${d.vid}_${d.pid}`] = d.name);
+
+            let foundActive = false;
+
+            const allBtn = document.createElement('div');
+
+            allBtn.className = 'device-item';
+
+            if (!currentDevice) {
+
+                allBtn.classList.add('active');
+
+                foundActive = true;
+
+            }
+
+            allBtn.innerHTML = `
+
+                <div class="device-name">全部映射</div>
+
+                <div class="device-vidpid">管理所有设备的拦截规则</div>
+
+            `;
+
+            allBtn.onclick = () => {
+
+                document.querySelectorAll('.device-item').forEach(d => d.classList.remove('active'));
+
+                allBtn.classList.add('active');
+
+                currentDevice = null;
+
+                document.getElementById('curDevName').innerText = '全部映射';
+
+                document.getElementById('curDevVidPid').innerText = `共 ${mappingsData.length} 条规则 (${devices.length} 个设备)`;
+
+                postMsg('selectDevice:0,0');
+
+                RenderMappings();
+
+            };
+
+            listEl.appendChild(allBtn);
+
+            devices.forEach(dev => {
+
+                const el = document.createElement('div');
+
+                el.className = 'device-item';
+
+                if (currentDevice && dev.vid == currentDevice.vid && dev.pid == currentDevice.pid) {
+
+                    el.classList.add('active');
+
+                    currentDevice = dev;
+
+                    foundActive = true;
+
+                }
+
+                let typeStr = '标准设备';
+
+                if (dev.type === 1) typeStr = '键盘设备';
+
+                else if (dev.type === 0) typeStr = '鼠标设备';
+
+                else if (dev.usagePage === 12) typeStr = '多媒体控制';
+
+                el.innerHTML = `
+
+                    <div class="device-name">${dev.name}</div>
+
+                    <div class="device-vidpid">VID:0x${dev.vid.toString(16).toUpperCase().padStart(4, '0')} PID:0x${dev.pid.toString(16).toUpperCase().padStart(4, '0')}</div>
+
+                    <div class="device-vidpid" style="margin-top:2px">${typeStr}</div>
+
+                `;
+
+                el.onclick = () => {
+
+                    document.querySelectorAll('.device-item').forEach(d => d.classList.remove('active'));
+
+                    el.classList.add('active');
+
+                    currentDevice = dev;
+
+                    document.getElementById('curDevName').innerText = dev.name;
+
+                    document.getElementById('curDevVidPid').innerText = `VID:0x${dev.vid.toString(16).toUpperCase().padStart(4, '0')} PID:0x${dev.pid.toString(16).toUpperCase().padStart(4, '0')}`;
+
+                    postMsg('selectDevice:' + dev.vid + ',' + dev.pid);
+
+                    RenderMappings();
+
+                };
+
+                listEl.appendChild(el);
+
+            });
+
+            if (foundActive && currentDevice) {
+
+                document.getElementById('curDevName').innerText = currentDevice.name;
+
+                document.getElementById('curDevVidPid').innerText = `VID:0x${currentDevice.vid.toString(16).toUpperCase().padStart(4, '0')} PID:0x${currentDevice.pid.toString(16).toUpperCase().padStart(4, '0')}`;
+
+            } else if (!currentDevice) {
+
+                document.getElementById('curDevName').innerText = '全部映射';
+
+                document.getElementById('curDevVidPid').innerText = `共 ${mappingsData.length} 条规则 (${devices.length} 个设备)`;
+
+            }
+
+        }
+
+        function LoadMappings(mappingsJSON) {
+
+            mappingsData = JSON.parse(mappingsJSON);
+
+            RenderMappings();
+
+        }
+
+
+
+
+        function SetSourceCapture(index, reportHex, capVid, capPid) {
+
+            const btn = document.getElementById(`btnCap_${index}`);
+
+            if (btn) {
+
+                btn.classList.remove('capturing');
+
+                btn.innerText = '重新捕获';
+
+            }
+
+            if (mappingsData[index]) {
+
+                mappingsData[index].source = reportHex;
+
+                if (capVid !== undefined && capPid !== undefined) {
+
+                    mappingsData[index].vid = capVid;
+
+                    mappingsData[index].pid = capPid;
+
+                }
+
+                RenderMappings();
+
+                QueueAutoSave();
+
+            }
+
+        }
+
+        function SetHotkeyCapture(rowIdx, stepIdx, hotkey, done) {
+
+            if (mappingsData[rowIdx]) {
+
+                mappingsData[rowIdx]['hk' + stepIdx] = hotkey || '';
+
+            }
+
+            const input = document.getElementById(`hk_${rowIdx}_${stepIdx}`);
+
+            if (input) {
+
+                input.value = hotkey || '';
+
+                if (done) {
+
+                    input.classList.remove('listening');
+
+                    input.blur();
+
+                }
+
+            }
+
+            if (done && listeningInput && listeningInput.rowIdx === rowIdx && listeningInput.stepIdx === stepIdx) {
+
+                listeningInput = null;
+
+            }
+
+            if (done) {
+
+                const warning = GetReservedHotkeyWarning(hotkey || '');
+
+                if (warning) ShowWarningToast(warning);
+
+                QueueAutoSave();
+
+            }
+
+        }
+
+        function RenderMappings() {
+
+            const area = document.getElementById('mappingArea');
+
+            area.innerHTML = '';
+
+            mappingsData.forEach((row, i) => {
+
+                if (currentDevice && (row.vid != currentDevice.vid || row.pid != currentDevice.pid)) return;
+
+                const rowEl = document.createElement('div');
+
+                const isEnabled = (row.enabled !== false);
+
+                rowEl.className = 'mapping-row' + (isEnabled ? '' : ' disabled');
+
+                let devBadgeHtml = '';
+
+                if (!currentDevice) {
+
+                    const devName = window.deviceMap[`${row.vid}_${row.pid}`] || `未知设备 (${row.vid}:${row.pid})`;
+
+                    devBadgeHtml = `<div class="device-vidpid" style="margin-bottom: 8px; color: var(--text-main); font-weight: 900;">[ ${devName} ]</div>`;
+
+                }
+
+                rowEl.innerHTML = `
+
+                    <button class="btn-del" onclick="DeleteRow(${i})">×</button>
+
+                    ${devBadgeHtml}
+
+                    <div class="row-top">
+
+                        <div class="source-section">
+
+                            <div class="label-sm">源信号</div>
+
+                            <div class="source-badge ${row.source ? '' : 'empty'}">${row.source || '未捕获'}</div>
+
+                            <button id="btnCap_${i}" class="btn-capture" onclick="StartCapture(${i})">捕获</button>
+
+                        </div>
+
+                        <div class="row-arrow">→</div>
+
+                        <div style="flex:1">
+
+                            <div class="label-sm" style="margin-bottom:0; color:var(--text-main);">目标快捷键（循环触发）</div>
+
+                        </div>
+
+                        <label class="switch" style="margin-left:12px" title="启用或停用映射">
+
+                            <input type="checkbox" onchange="ToggleEnable(${i}, this.checked)" ${isEnabled ? 'checked' : ''}>
+
+                            <span class="slider"></span>
+
+                        </label>
+
+                    </div>
+
+                    <div class="row-targets">
+
+                        <div class="step-col">
+
+                            <div class="label-sm">① 第 1 次</div>
+
+                            <input type="text" class="hotkey-input" id="hk_${i}_1" value="${row.hk1 || ''}" placeholder="点此录入..." readonly onfocus="StartListenHotkey(${i}, 1)" onblur="StopListenHotkey(${i}, 1)">
+
+                        </div>
+
+                        <div class="step-col">
+
+                            <div class="label-sm">② 第 2 次</div>
+
+                            <input type="text" class="hotkey-input" id="hk_${i}_2" value="${row.hk2 || ''}" placeholder="空=重置" readonly onfocus="StartListenHotkey(${i}, 2)" onblur="StopListenHotkey(${i}, 2)">
+
+                        </div>
+
+                        <div class="step-col">
+
+                            <div class="label-sm">③ 第 3 次</div>
+
+                            <input type="text" class="hotkey-input" id="hk_${i}_3" value="${row.hk3 || ''}" placeholder="空=重置" readonly onfocus="StartListenHotkey(${i}, 3)" onblur="StopListenHotkey(${i}, 3)">
+
+                        </div>
+
+                    </div>
+
+                `;
+
+                area.appendChild(rowEl);
+
+            });
+
+            if (!currentDevice) {
+
+                let devCount = document.querySelectorAll('.device-item').length - 1;
+
+                document.getElementById('curDevVidPid').innerText = `共 ${mappingsData.length} 条规则 (${devCount} 个设备)`;
+
+            }
+
+        }
+
+        function AddRow() {
+
+            let addVid = 0;
+
+            let addPid = 0;
+
+            if (currentDevice) {
+
+                addVid = currentDevice.vid;
+
+                addPid = currentDevice.pid;
+
+            }
+
+            mappingsData.push({ vid: addVid, pid: addPid, source: '', hk1: '', hk2: '', hk3: '', enabled: true });
+
+            RenderMappings();
+
+            document.getElementById('mappingArea').scrollTop = document.getElementById('mappingArea').scrollHeight;
+
+            QueueAutoSave();
+
+        }
+
+        function ToggleEnable(index, checked) {
+
+            mappingsData[index].enabled = checked;
+
+            RenderMappings();
+
+            QueueAutoSave();
+
+        }
+
+        function DeleteRow(index) {
+
+            mappingsData.splice(index, 1);
+
+            RenderMappings();
+
+            QueueAutoSave();
+
+        }
+
+        function ToggleAutoStart(checked) {
+
+            settings.autoStart = checked;
+
+            postMsg('setAutoStart:' + (checked ? '1' : '0'));
+
+        }
+
+        function RunInterception() {
+
+            clearTimeout(autoSaveTimer);
+
+            postMsg('syncConfig:' + GetMappingData());
+
+            postMsg('run:');
+
+        }
+
+        function StartCapture(index) {
+
+            document.querySelectorAll('.btn-capture').forEach(b => {
+
+                b.classList.remove('capturing');
+
+                b.innerText = '捕获按键';
+
+            });
+
+            const btn = document.getElementById(`btnCap_${index}`);
+
+            btn.classList.add('capturing');
+
+            btn.innerText = '请按下...';
+
+            postMsg('startCapture:' + index);
+
+        }
+
+        function StartListenHotkey(rowIdx, stepIdx) {
+
+            const input = document.getElementById(`hk_${rowIdx}_${stepIdx}`);
+
+            input.classList.add('listening');
+
+            input.value = '请按键 (点外部取消)';
+
+            listeningInput = { rowIdx, stepIdx, el: input };
+
+            postMsg(`startHotkeyCapture:${rowIdx},${stepIdx}`);
+
+        }
+
+        function StopListenHotkey(rowIdx, stepIdx) {
+
+            const input = document.getElementById(`hk_${rowIdx}_${stepIdx}`);
+
+            input.classList.remove('listening');
+
+            if (input.value === '请按键 (点外部取消)') {
+
+                input.value = mappingsData[rowIdx][`hk${stepIdx}`] || '';
+
+            }
+
+            postMsg('stopHotkeyCapture:');
+
+            listeningInput = null;
+
+        }
+
+        function GetMappingData() {
+
+            return JSON.stringify(mappingsData);
+
+        }
+
+    </script>
+
+</body>
+
 </html>

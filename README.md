@@ -2,6 +2,43 @@
 
 VIBE FAST is a desktop utility for mapping HID device buttons to custom hotkeys.
 
+## 快速安装
+
+### 给普通用户
+
+推荐使用安装包或已编译的 `VibeFast.exe`，不要直接运行源码。
+
+1. 下载发布好的 `VibeFast_Setup.exe`
+2. 运行安装程序
+3. 安装完成后启动 `VIBE FAST`
+4. 连接你的接收器 / HID 设备
+5. 在界面里添加映射并点击 `启动拦截`
+
+如果只有单文件版本，也可以直接运行 `VibeFast.exe`，但安装包更适合普通用户。
+
+### 给开发者
+
+如果你是开发或调试用途，可以直接运行：
+
+- `F:\CODE\FastKey\VibeFast.ahk`
+
+前提是本机已安装 AutoHotkey v2。
+
+### 是否需要打包成 EXE
+
+需要。
+如果要给别人用，建议始终提供：
+
+- `VibeFast.exe`
+- `VibeFast_Setup.exe`
+
+原因：
+
+- 普通用户不需要额外安装 AutoHotkey
+- 使用门槛更低
+- 更接近正常桌面软件的交付方式
+- 开机自启动、图标、安装路径这些体验也更完整
+
 ## 中文说明
 
 VIBE FAST 是一个桌面工具，用来把 HID 设备按钮映射成自定义快捷键。

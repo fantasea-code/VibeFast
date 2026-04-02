@@ -311,10 +311,15 @@ OnWebMessage(sender, args) {
         SetupTray()
         TrayTip("VIBE FAST 已在后台极速拦截运行", APP_NAME)
     }
-    else if (action == "setAutoStart") {
-        AutoStartEnabled := (payload = "1")
-        SaveAutoStartSetting()
-        ApplyAutoStartSetting()
+    else if (action == "setAutoStart") {
+        AutoStartEnabled := (payload = "1")
+        SaveAutoStartSetting()
+        ApplyAutoStartSetting()
+    }
+    else if (action == "saveSidebarWidth") {
+        global SidebarWidth
+        SidebarWidth := Integer(payload)
+        IniWrite(SidebarWidth, CONFIG_FILE, "Settings", "SidebarWidth")
     }
 }
 
@@ -404,19 +409,19 @@ PushMappings() {
         enabled := m.HasOwnProp("enabled") ? m.enabled : true
         json .= '{"vid":' vidStr ',"pid":' pidStr ',"source":"' src '","hk1":"' EscapeJS(m.hk1) '","hk2":"' EscapeJS(m.hk2) '","hk3":"' EscapeJS(m.hk3) '","enabled":' (enabled ? "true" : "false") '},'
     }
-    json := RTrim(json, ",") "]"
-    RunJS("LoadMappings('" EscapeJS(json) "');")
-}
-
-PushSettings() {
-    global AutoStartEnabled
-    json := AutoStartEnabled ? '{""autoStart"":true' : '{""autoStart"":false'
-    json .= ',""sidebarWidth"":' SidebarWidth '}'
-    RunJS("LoadSettings('" EscapeJS(json) "');")
-}
-
-EscapeJS(s) {
-    s := StrReplace(s, "\", "\\")
+    json := RTrim(json, ",") "]"
+    RunJS("LoadMappings('" EscapeJS(json) "');")
+}
+
+PushSettings() {
+    global AutoStartEnabled, SidebarWidth
+    json := AutoStartEnabled ? '{"autoStart":true' : '{"autoStart":false'
+    json .= ',"sidebarWidth":' SidebarWidth '}'
+    RunJS("LoadSettings('" EscapeJS(json) "');")
+}
+
+EscapeJS(s) {
+    s := StrReplace(s, "\", "\\")
     s := StrReplace(s, "'", "\'")
     s := StrReplace(s, "`n", "\n")
     s := StrReplace(s, "`r", "")
@@ -523,7 +528,7 @@ ShouldFireMapping(mappingKey) {
 ;  配置读写
 ; ============================================================
 LoadConfig() {
-    global CONFIG_FILE, Mappings, ActiveWhitelist, AutoStartEnabled
+    global CONFIG_FILE, Mappings, ActiveWhitelist, AutoStartEnabled, SidebarWidth
     if !FileExist(CONFIG_FILE) {
         Mappings := []
         AutoStartEnabled := true
@@ -533,7 +538,8 @@ LoadConfig() {
     count := Integer(IniRead(CONFIG_FILE, "Mappings", "Count", "0"))
     Mappings := []
     ActiveWhitelist.Clear()
-    AutoStartEnabled := (IniRead(CONFIG_FILE, "Settings", "AutoStart", "1") = "1")
+    AutoStartEnabled := (IniRead(CONFIG_FILE, "Settings", "AutoStart", "1") = "1")
+    SidebarWidth := Integer(IniRead(CONFIG_FILE, "Settings", "SidebarWidth", "280"))
     Loop count {
         sec := "Mapping" A_Index
         m_vidHex := IniRead(CONFIG_FILE, sec, "VID", "0")
