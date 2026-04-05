@@ -111,11 +111,16 @@ for arg in A_Args {
 }
 
 if (isBackground && FileExist(CONFIG_FILE)) {
-    LoadConfig()
+    LoadConfig()
+    ; If the HKCU Run entry was removed externally, restore it from saved settings.
+    ApplyAutoStartSetting()
     StartHooks()
     SetupTray()
 } else {
-    ShowMainGui()
+    LoadConfig()
+    ; Keep HKCU Run in sync on normal launches too.
+    ApplyAutoStartSetting()
+    ShowMainGui()
 }
 return
 
@@ -164,12 +169,16 @@ OnWvReady(ctrl) {
     core.add_NavigationCompleted(OnNavCompleted)
 }
 
-OnAccelKey(ctrl, args) {
-    global core
-    if !IsObject(core) {
-        return
-    }
-    eventType := args.KeyEventKind  ; 0=KeyDown 1=KeyUp 2=SystemKeyDown 3=SystemKeyUp
+OnAccelKey(ctrl, args) {
+    global core, IsHotkeyCapturing
+    if !IsObject(core) {
+        return
+    }
+    if IsHotkeyCapturing {
+        args.Handled := true
+        return
+    }
+    eventType := args.KeyEventKind  ; 0=KeyDown 1=KeyUp 2=SystemKeyDown 3=SystemKeyUp
     vkey := args.VirtualKey
 
     ; 只处理 SystemKeyDown（ALT组合）
@@ -609,19 +618,32 @@ SaveAutoStartSetting() {
     IniWrite(AutoStartEnabled ? "1" : "0", CONFIG_FILE, "Settings", "AutoStart")
 }
 
-ApplyAutoStartSetting() {
-    global APP_NAME, AutoStartEnabled, AUTOSTART_REG_KEY, AUTOSTART_REG_NAME
-    try {
-        if AutoStartEnabled {
-            RegWrite(GetAutoStartCommand(), "REG_SZ", AUTOSTART_REG_KEY, AUTOSTART_REG_NAME)
-        } else {
-            try RegDelete(AUTOSTART_REG_KEY, AUTOSTART_REG_NAME)
-        }
-    }
-    catch Error as err {
-        MsgBox("开机自启动设置失败:`n" err.Message, APP_NAME, "Iconx")
-    }
-}
+ApplyAutoStartSetting() {
+    global APP_NAME, AutoStartEnabled, AUTOSTART_REG_KEY, AUTOSTART_REG_NAME
+    try {
+        if AutoStartEnabled {
+            try RegWrite(GetAutoStartCommand(), "REG_SZ", AUTOSTART_REG_KEY, AUTOSTART_REG_NAME)
+            if !IsAutoStartRegistered()
+                RunWait(A_ComSpec ' /c reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v "' AUTOSTART_REG_NAME '" /t REG_SZ /d "' GetAutoStartCommand() '" /f',, "Hide")
+        } else {
+            try RegDelete(AUTOSTART_REG_KEY, AUTOSTART_REG_NAME)
+            if IsAutoStartRegistered()
+                RunWait(A_ComSpec ' /c reg delete "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v "' AUTOSTART_REG_NAME '" /f',, "Hide")
+        }
+    }
+    catch Error as err {
+        MsgBox("开机自启动设置失败:`n" err.Message, APP_NAME, "Iconx")
+    }
+}
+
+IsAutoStartRegistered() {
+    global AUTOSTART_REG_KEY, AUTOSTART_REG_NAME
+    try {
+        return RegRead(AUTOSTART_REG_KEY, AUTOSTART_REG_NAME) != ""
+    } catch {
+        return false
+    }
+}
 
 GetAutoStartCommand() {
     if A_IsCompiled
@@ -837,7 +859,7 @@ StopHooks() {
 ;  WM_INPUT 核心拦截
 ; ============================================================
 HandleRawInput(wParam, lParam, msg, hwnd) {
-    global DeviceHandleMap, IsCapturing, CaptureRowIdx
+    global DeviceHandleMap, IsCapturing, CaptureRowIdx, CaptureShouldStopHooks
     global Mappings, Paused, ActiveWhitelist
     ; 绝不能使用 Critical "On"。它会强制 Windows 底层输入列队等待 AHK 处理，
     ; 导致高回报率鼠标发生严重的轨迹断层和卡顿。让 AHK 异步处理即可！
@@ -1028,9 +1050,37 @@ NormalizeHotkeyToken(token) {
         return aliases[upper]
     if RegExMatch(upper, "^F\d{1,2}$")
         return upper
-    if RegExMatch(upper, "^[A-Z0-9]$")
-        return upper
-    return token
+    if RegExMatch(upper, "^[A-Z0-9]$")
+        return upper
+    static punct := Map(
+        ";", ";",
+        ":", ";",
+        "/", "/",
+        "?", "/",
+        ".", ".",
+        ">", ".",
+        ",", ",",
+        "<", ",",
+        "-", "-",
+        "_", "-",
+        "=", "=",
+        "+", "=",
+        "[", "[",
+        "{", "[",
+        "]", "]",
+        "}", "]",
+        "\", "\",
+        "|", "\",
+        "'", "'",
+        '"', "'",
+        "`", "`",
+        "~", "`"
+    )
+    if punct.Has(token)
+        return punct[token]
+    if punct.Has(upper)
+        return punct[upper]
+    return token
 }
 
 BuildSendKeyName(token) {
@@ -1050,7 +1100,9 @@ GetPressedMainKey() {
         "F1","F2","F3","F4","F5","F6","F7","F8","F9","F10","F11","F12",
         "F13","F14","F15","F16","F17","F18","F19","F20","F21","F22","F23","F24",
         "Space","Tab","Enter","Escape","Backspace","Delete","Insert",
-        "Up","Down","Left","Right","Home","End","PgUp","PgDn"
+        "Up","Down","Left","Right","Home","End","PgUp","PgDn",
+
+        ";","/","\",".",",","-","=","[","]","'","`"
     ]
     for key in keys {
         if GetKeyState(key, "P")
@@ -1140,12 +1192,11 @@ StartHotkeyCapture(rowIdx, stepIdx) {
     HotkeyCaptureBestCount := 0
     HotkeyCaptureSeenInput := false
     HotkeyCaptureBlockingInput := false
-    try {
-        BlockInput("On")
-        HotkeyCaptureBlockingInput := true
-    }
-    IsHotkeyCapturing := true
-    SetTimer(PollHotkeyCapture, 25)
+    ; BlockInput made Enter / arrows unreliable in capture on this machine.
+    ; Keep capture accurate even if it is slightly less aggressive.
+    HotkeyCaptureBlockingInput := false
+    IsHotkeyCapturing := true
+    SetTimer(PollHotkeyCapture, 10)
 }
 
 StopHotkeyCapture(keepValue := false) {
@@ -1206,16 +1257,20 @@ SendMappedHotkey(str) {
 ; ============================================================
 ;  托盘菜单
 ; ============================================================
-SetupTray() {
-    tray := A_TrayMenu
-    tray.Delete()
-    tray.Add("打开配置", (*) => ShowMainGui())
-    tray.Add("暂停", OnTrayPause)
-    tray.Add()
-    tray.Add("退出", (*) => ExitApp())
-    tray.Default := "打开配置"
-    A_IconTip := APP_NAME " - 运行中"
-}
+SetupTray() {
+    global AutoStartEnabled
+    tray := A_TrayMenu
+    tray.Delete()
+    tray.Add("显示主页面", (*) => ShowMainGui())
+    tray.Add("开机自动启动", ToggleTrayAutoStart)
+    if AutoStartEnabled
+        tray.Check("开机自动启动")
+    tray.Add("暂停", OnTrayPause)
+    tray.Add()
+    tray.Add("完全退出", (*) => ExitApp())
+    tray.Default := "显示主页面"
+    A_IconTip := APP_NAME " - 运行中"
+}
 
 OnTrayPause(itemName, itemPos, myMenu) {
     global Paused := !Paused

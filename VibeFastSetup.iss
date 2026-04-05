@@ -25,10 +25,14 @@ Source: "WebView2Loader.dll"; DestDir: "{app}"; Flags: ignoreversion
 Source: "WebUI\*"; DestDir: "{app}\WebUI"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "C:\Users\31523\Downloads\AutoHotkey_2.0.21_setup.exe"; DestDir: "{tmp}"; Flags: deleteafterinstall
 
+[Tasks]
+Name: "startmenuicon"; Description: "创建开始菜单快捷方式"; Flags: unchecked
+Name: "desktopicon"; Description: "创建桌面快捷方式"; Flags: unchecked
+
 [Icons]
-Name: "{group}\VIBE FAST"; Filename: "{code:GetAhkExe}"; Parameters: """{app}\VibeFast.ahk"""
+Name: "{group}\VIBE FAST"; Filename: "{code:GetAhkExe}"; Parameters: """{app}\VibeFast.ahk"""; Tasks: startmenuicon
 Name: "{group}\卸载 VIBE FAST"; Filename: "{uninstallexe}"
-Name: "{commondesktop}\VIBE FAST"; Filename: "{code:GetAhkExe}"; Parameters: """{app}\VibeFast.ahk"""
+Name: "{commondesktop}\VIBE FAST"; Filename: "{code:GetAhkExe}"; Parameters: """{app}\VibeFast.ahk"""; Tasks: desktopicon
 
 [Run]
 Filename: "{tmp}\AutoHotkey_2.0.21_setup.exe"; Description: "安装 AutoHotkey v2 运行环境"; Flags: postinstall waituntilterminated skipifsilent; Check: not IsAhkInstalled

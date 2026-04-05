@@ -1260,7 +1260,7 @@
 
                             <div class="label-sm">① 第 1 次</div>
 
-                            <input type="text" class="hotkey-input" id="hk_${i}_1" value="${row.hk1 || ''}" placeholder="点此录入..." readonly onfocus="StartListenHotkey(${i}, 1)" onblur="StopListenHotkey(${i}, 1)">
+                            <input type="text" class="hotkey-input" id="hk_${i}_1" value="${row.hk1 || ''}" placeholder="点此录入..." readonly onfocus="StartListenHotkey(${i}, 1)" onblur="StopListenHotkey(${i}, 1)" onkeydown="SuppressListeningKey(event)">
 
                         </div>
 
@@ -1268,7 +1268,7 @@
 
                             <div class="label-sm">② 第 2 次</div>
 
-                            <input type="text" class="hotkey-input" id="hk_${i}_2" value="${row.hk2 || ''}" placeholder="空=重置" readonly onfocus="StartListenHotkey(${i}, 2)" onblur="StopListenHotkey(${i}, 2)">
+                            <input type="text" class="hotkey-input" id="hk_${i}_2" value="${row.hk2 || ''}" placeholder="空=重置" readonly onfocus="StartListenHotkey(${i}, 2)" onblur="StopListenHotkey(${i}, 2)" onkeydown="SuppressListeningKey(event)">
 
                         </div>
 
@@ -1276,7 +1276,7 @@
 
                             <div class="label-sm">③ 第 3 次</div>
 
-                            <input type="text" class="hotkey-input" id="hk_${i}_3" value="${row.hk3 || ''}" placeholder="空=重置" readonly onfocus="StartListenHotkey(${i}, 3)" onblur="StopListenHotkey(${i}, 3)">
+                            <input type="text" class="hotkey-input" id="hk_${i}_3" value="${row.hk3 || ''}" placeholder="空=重置" readonly onfocus="StartListenHotkey(${i}, 3)" onblur="StopListenHotkey(${i}, 3)" onkeydown="SuppressListeningKey(event)">
 
                         </div>
 
@@ -1391,6 +1391,17 @@
             listeningInput = { rowIdx, stepIdx, el: input };
 
             postMsg(`startHotkeyCapture:${rowIdx},${stepIdx}`);
+
+        }
+
+        function SuppressListeningKey(event) {
+
+            if (!listeningInput) return;
+
+            if (event.target !== listeningInput.el) return;
+
+            event.preventDefault();
+            event.stopPropagation();
 
         }
 
