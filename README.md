@@ -61,7 +61,13 @@ VIBE FAST 是一个把外设按钮改成你自己快捷键的小工具。
 
 - `VibeFast.ahk`
 
-前提是本机已安装 AutoHotkey v2。
+前提是本机已安装以下开发依赖。
+
+#### 开发依赖
+
+- `AutoHotkey v2`
+- `WebView2 Runtime`（大多数 Windows 10/11 设备已自带；如果前端界面打不开，需要单独补装）
+- `Inno Setup`（仅在你需要自己构建安装包时需要）
 
 <a id="chinese"></a>
 
@@ -167,7 +173,13 @@ If you are using it for development or debugging, you can run:
 
 - `VibeFast.ahk`
 
-This requires AutoHotkey v2 to already be installed on the machine.
+This requires the following development dependencies to already be installed on the machine.
+
+#### Development Dependencies
+
+- `AutoHotkey v2`
+- `WebView2 Runtime` (included on most Windows 10/11 systems; install it manually if the UI does not open)
+- `Inno Setup` (only needed if you want to build the installer yourself)
 
 ## Current Scope
 
