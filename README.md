@@ -71,6 +71,8 @@ VIBE FAST 是一个把外设按钮改成你自己快捷键的小工具。
 
 <a id="chinese"></a>
 
+## 中文版
+
 VIBE FAST 适合这种场景：
 
 - 你的设备按钮默认功能不好用
@@ -113,6 +115,8 @@ VIBE FAST 适合这种场景：
 - 文本文件建议统一使用 UTF-8，避免不明确编码的覆盖写入。
 
 <a id="english"></a>
+
+## English
 
 VIBE FAST is a small tool that remaps hardware buttons into the shortcuts you actually want.
 
