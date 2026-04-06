@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 
 <html lang="zh-CN">
 
@@ -863,6 +863,7 @@
 
     <script>
         function postMsg(s) { window.chrome.webview.postMessage(s); }
+        function traceUi(msg) { postMsg('debugTrace:' + msg); }
 
         let currentDevice = null;
         let mappingsData = [];
@@ -978,6 +979,24 @@
                 postMsg('syncConfig:' + GetMappingData());
 
             }, 180);
+
+        }
+
+        function ResetTransientUiState() {
+
+            if (document.activeElement && typeof document.activeElement.blur === 'function') {
+
+                document.activeElement.blur();
+
+            }
+
+            document.querySelectorAll('.hotkey-input.listening').forEach(input => {
+
+                input.classList.remove('listening');
+
+            });
+
+            listeningInput = null;
 
         }
 
@@ -1186,8 +1205,6 @@
 
                 if (warning) ShowWarningToast(warning);
 
-                QueueAutoSave();
-
             }
 
         }
@@ -1260,7 +1277,7 @@
 
                             <div class="label-sm">① 第 1 次</div>
 
-                            <input type="text" class="hotkey-input" id="hk_${i}_1" value="${row.hk1 || ''}" placeholder="点此录入..." readonly onfocus="StartListenHotkey(${i}, 1)" onblur="StopListenHotkey(${i}, 1)" onkeydown="SuppressListeningKey(event)">
+                            <input type="text" class="hotkey-input" id="hk_${i}_1" value="${row.hk1 || ''}" placeholder="点此录入..." readonly onfocus="StartListenHotkey(${i}, 1)" onclick="StartListenHotkey(${i}, 1)" onblur="StopListenHotkey(${i}, 1)" onkeydown="SuppressListeningKey(event)">
 
                         </div>
 
@@ -1268,7 +1285,7 @@
 
                             <div class="label-sm">② 第 2 次</div>
 
-                            <input type="text" class="hotkey-input" id="hk_${i}_2" value="${row.hk2 || ''}" placeholder="空=重置" readonly onfocus="StartListenHotkey(${i}, 2)" onblur="StopListenHotkey(${i}, 2)" onkeydown="SuppressListeningKey(event)">
+                            <input type="text" class="hotkey-input" id="hk_${i}_2" value="${row.hk2 || ''}" placeholder="空=重置" readonly onfocus="StartListenHotkey(${i}, 2)" onclick="StartListenHotkey(${i}, 2)" onblur="StopListenHotkey(${i}, 2)" onkeydown="SuppressListeningKey(event)">
 
                         </div>
 
@@ -1276,7 +1293,7 @@
 
                             <div class="label-sm">③ 第 3 次</div>
 
-                            <input type="text" class="hotkey-input" id="hk_${i}_3" value="${row.hk3 || ''}" placeholder="空=重置" readonly onfocus="StartListenHotkey(${i}, 3)" onblur="StopListenHotkey(${i}, 3)" onkeydown="SuppressListeningKey(event)">
+                            <input type="text" class="hotkey-input" id="hk_${i}_3" value="${row.hk3 || ''}" placeholder="空=重置" readonly onfocus="StartListenHotkey(${i}, 3)" onclick="StartListenHotkey(${i}, 3)" onblur="StopListenHotkey(${i}, 3)" onkeydown="SuppressListeningKey(event)">
 
                         </div>
 
@@ -1354,9 +1371,7 @@
 
             clearTimeout(autoSaveTimer);
 
-            postMsg('syncConfig:' + GetMappingData());
-
-            postMsg('run:');
+            postMsg('runWithConfig:' + GetMappingData());
 
         }
 
@@ -1384,11 +1399,40 @@
 
             const input = document.getElementById(`hk_${rowIdx}_${stepIdx}`);
 
+            traceUi(`StartListenHotkey row=${rowIdx} step=${stepIdx} active=${!!listeningInput}`);
+
+            if (listeningInput && listeningInput.rowIdx === rowIdx && listeningInput.stepIdx === stepIdx) {
+
+                traceUi(`StartListenHotkey skip-same row=${rowIdx} step=${stepIdx}`);
+
+                return;
+
+            }
+
+            if (listeningInput && listeningInput.el && listeningInput.el !== input) {
+
+                traceUi(`StartListenHotkey switch row=${listeningInput.rowIdx}->${rowIdx} step=${listeningInput.stepIdx}->${stepIdx}`);
+
+                listeningInput.el.classList.remove('listening');
+
+                if (listeningInput.el.value === '请按键 (点外部取消)') {
+
+                    const prevRow = listeningInput.rowIdx;
+                    const prevStep = listeningInput.stepIdx;
+
+                    listeningInput.el.value = mappingsData[prevRow][`hk${prevStep}`] || '';
+
+                }
+
+            }
+
             input.classList.add('listening');
 
             input.value = '请按键 (点外部取消)';
 
             listeningInput = { rowIdx, stepIdx, el: input };
+
+            traceUi(`StartListenHotkey post startHotkeyCapture row=${rowIdx} step=${stepIdx}`);
 
             postMsg(`startHotkeyCapture:${rowIdx},${stepIdx}`);
 
@@ -1409,6 +1453,10 @@
 
             const input = document.getElementById(`hk_${rowIdx}_${stepIdx}`);
 
+            const isActiveInput = listeningInput && listeningInput.rowIdx === rowIdx && listeningInput.stepIdx === stepIdx;
+
+            traceUi(`StopListenHotkey row=${rowIdx} step=${stepIdx} active=${!!isActiveInput}`);
+
             input.classList.remove('listening');
 
             if (input.value === '请按键 (点外部取消)') {
@@ -1417,9 +1465,21 @@
 
             }
 
+            if (!isActiveInput) {
+
+                traceUi(`StopListenHotkey skip-inactive row=${rowIdx} step=${stepIdx}`);
+
+                return;
+
+            }
+
+            traceUi(`StopListenHotkey post stopHotkeyCapture row=${rowIdx} step=${stepIdx}`);
+
             postMsg('stopHotkeyCapture:');
 
             listeningInput = null;
+
+            traceUi('ResetTransientUiState');
 
         }
 

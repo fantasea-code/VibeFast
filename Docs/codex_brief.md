@@ -3,9 +3,9 @@
 ## Project summary
 
 - Stack: AutoHotkey v2 + WebView2
-- Main entry: `F:\CODE\FastKey\VibeFast.ahk`
-- Frontend: `F:\CODE\FastKey\WebUI\index.html`
-- Config: `F:\CODE\FastKey\config.ini`
+- Main entry: `F:\CODE\VibeFast\VibeFast.ahk`
+- Frontend: `F:\CODE\VibeFast\WebUI\index.html`
+- Config: `F:\CODE\VibeFast\config.ini`
 
 ## Main conclusions
 
