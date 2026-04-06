@@ -1,4 +1,5 @@
 ﻿WebView2Data/
 Output/
+_build/
 config.ini
 *.log
