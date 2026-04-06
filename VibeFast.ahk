@@ -129,6 +129,7 @@ EnumerateHIDDevices()
 ; RegisterForRawInput() 和 OnMessage(WM_INPUT, ...) 将被推迟到“第二阶段”用户显式点击启动后执行
 
 isBackground := false
+isAutoStart := false
 
 for arg in A_Args {
 
@@ -136,9 +137,23 @@ if (arg = "/background")
 
 isBackground := true
 
+if (arg = "/autostart")
+
+isAutoStart := true
+
 }
 
-if (isBackground && FileExist(CONFIG_FILE)) {
+if (isAutoStart && FileExist(CONFIG_FILE)) {
+
+LoadConfig()
+    ; If the HKCU Run entry was removed externally, restore it from saved settings.
+    ApplyAutoStartSetting()
+    StartHooks()
+    StopHotkeyCapture(true)
+    SetupTray()
+    TrayTip("VIBE FAST 已在后台极速拦截运行", APP_NAME)
+
+} else if (isBackground && FileExist(CONFIG_FILE)) {
 
 LoadConfig()
     ; If the HKCU Run entry was removed externally, restore it from saved settings.
@@ -1295,9 +1310,9 @@ GetAutoStartCommand() {
 
 if A_IsCompiled
 
-return Chr(34) A_ScriptFullPath Chr(34) " /background"
+return Chr(34) A_ScriptFullPath Chr(34) " /autostart"
 
-return Chr(34) A_AhkPath Chr(34) " " Chr(34) A_ScriptFullPath Chr(34) " /background"
+return Chr(34) A_AhkPath Chr(34) " " Chr(34) A_ScriptFullPath Chr(34) " /autostart"
 
 }
 
