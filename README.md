@@ -2,6 +2,10 @@
 
 [中文版](#chinese) | [English](#english)
 
+<a id="chinese"></a>
+
+## 中文版
+
 VIBE FAST 是一个把外设按钮改成你自己快捷键的小工具。
 
 如果你的设备按钮默认只能做 `音量+`、`音量-`、播放暂停这类系统动作，但你真正想要的是触发某个软件快捷键，那它就是拿来做这个的。
@@ -68,10 +72,6 @@ VIBE FAST 是一个把外设按钮改成你自己快捷键的小工具。
 - `AutoHotkey v2`
 - `WebView2 Runtime`（大多数 Windows 10/11 设备已自带；如果前端界面打不开，需要单独补装）
 - `Inno Setup`（仅在你需要自己构建安装包时需要）
-
-<a id="chinese"></a>
-
-## 中文版
 
 VIBE FAST 适合这种场景：
 
