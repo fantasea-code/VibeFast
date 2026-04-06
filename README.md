@@ -1,5 +1,7 @@
 ﻿# VIBE FAST
 
+[中文版](#chinese) | [English](#english)
+
 VIBE FAST 是一个把外设按钮改成你自己快捷键的小工具。
 
 如果你的设备按钮默认只能做 `音量+`、`音量-`、播放暂停这类系统动作，但你真正想要的是触发某个软件快捷键，那它就是拿来做这个的。
@@ -61,7 +63,7 @@ VIBE FAST 是一个把外设按钮改成你自己快捷键的小工具。
 
 前提是本机已安装 AutoHotkey v2。
 
-## 中文说明
+<a id="chinese"></a>
 
 VIBE FAST 适合这种场景：
 
@@ -104,20 +106,93 @@ VIBE FAST 适合这种场景：
 - `启动拦截` 只负责启动后台拦截流程。
 - 文本文件建议统一使用 UTF-8，避免不明确编码的覆盖写入。
 
-## Current scope
+<a id="english"></a>
 
-- Stable receiver / USB HID mapping is the main supported path.
-- Some Bluetooth devices are supported only if they expose standard HID input to Windows.
-- Config changes are saved automatically.
-- Auto start uses the current user `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`.
+VIBE FAST is a small tool that remaps hardware buttons into the shortcuts you actually want.
 
-## Known limits
+If your device buttons can only perform default system actions such as `Volume Up`, `Volume Down`, or play/pause, but what you really want is to trigger a shortcut inside a specific application, this tool is designed for exactly that.
 
-- `RawInput` can identify input, but it cannot truly swallow the original system media key.
-- System reserved shortcuts such as `Alt + Space` may be intercepted by Windows first.
-- Some Bluetooth devices expose audio or hands-free control instead of standard input events, so VIBE FAST cannot see them.
+Typical use cases:
 
-## Important files
+- Remap a microphone receiver button into an input method shortcut
+- Remap a mouse side button into a commonly used shortcut in a specific app
+- Turn the original media keys from an HID device into actions that fit your workflow better
+
+## Why This Tool Exists
+
+The original motivation was actually very simple.
+
+I use voice input heavily for vibe coding, and I specifically bought the DJI microphone. I kept wondering whether I could complete more common actions while only holding the microphone and touching the keyboard less often, so the whole workflow would feel lighter and more natural.
+
+That is why I built VIBE FAST.
+
+Its goal is not to show off technical tricks. Its real purpose is to take the awkward default buttons on microphones, receivers, mice, and similar devices, and turn them into the shortcuts I actually want, so vibe coding feels more natural.
+
+## Where To Download
+
+If you are a normal user, you do not need to read the source code or prepare a development environment.
+
+Go directly to this project's **Releases** page and download:
+
+- `VibeFast_Setup.exe`
+
+Download steps:
+
+1. Open the GitHub project homepage
+2. Click **Releases** on the right side
+3. Open the latest version
+4. Download `VibeFast_Setup.exe` from the release assets
+
+After installation, follow the quick start steps below.
+
+## Quick Start
+### For End Users
+
+After installation, the most common workflow is:
+
+1. Open `VIBE FAST`
+2. Select your device on the left
+3. Click Add Mapping
+4. Press the hardware button you want the program to remember
+5. Record the shortcut you want in the target hotkey fields
+6. Click `启动拦截`
+
+After that, whenever you press the device button, the program will try to turn it into the shortcut you configured.
+
+If you change a mapping, the configuration is saved automatically. There is no extra save button.
+
+### For Developers
+
+If you are using it for development or debugging, you can run:
+
+- `VibeFast.ahk`
+
+This requires AutoHotkey v2 to already be installed on the machine.
+
+## Current Scope
+
+VIBE FAST is suitable for scenarios like these:
+
+- The default function of your hardware button is not useful
+- You want to remap it into an application-specific shortcut
+- You want a lightweight tool to take over those external device buttons for you
+
+At the moment, the best-supported usage path is button mapping through receivers / USB HID devices.
+
+### Current Support Range
+
+- Receiver / USB HID mode is currently the main supported path and is the most stable
+- Bluetooth devices are easier to support only when Windows exposes them as standard HID input
+- Configuration changes are saved automatically
+- Auto start uses the current user registry key `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`
+
+### Current Known Limits
+
+- `RawInput` can identify the input source, but it cannot truly swallow the original system media key behavior
+- System-reserved shortcuts such as `Alt + Space` may be handled by Windows first
+- Some Bluetooth devices connect to Windows as audio / hands-free controls instead of standard input devices, and in those cases VIBE FAST usually cannot see the button events
+
+### Important Files
 
 - Main entry: `VibeFast.ahk`
 - Frontend: `WebUI/index.html`
@@ -125,29 +200,14 @@ VIBE FAST 适合这种场景：
 - Debug log: `DevTools/rawinput_trace.log`
 - Installer script: `VibeFastSetup.iss`
 
-## Project layout
+### Packaging
 
-```text
-FastKey/
-- VibeFast.ahk
-- VibeFastSetup.iss
-- config.ini
-- app_icon.ico
-- app_icon.png
-- Lib/
-- WebUI/
-- DevTools/
-- Docs/
-```
+1. Prepare an `AutoHotkey v2` runtime environment
+2. Open `VibeFastSetup.iss` in Inno Setup
+3. Build the installer
 
-## Packaging
+### Notes
 
-1. Prepare an `AutoHotkey v2` runtime environment.
-2. Open `VibeFastSetup.iss` in Inno Setup.
-3. Build the installer.
-
-## Notes
-
-- Mapping edits are auto-saved.
-- `Start Interception` only starts the background interception flow.
-- Keep text files in UTF-8 and avoid bulk overwrite operations with uncertain encodings.
+- Mapping changes are auto-saved by default
+- `启动拦截` only starts the background interception flow
+- It is recommended to keep text files in UTF-8 to avoid overwriting files with uncertain encodings
