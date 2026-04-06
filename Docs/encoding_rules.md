@@ -10,9 +10,9 @@ Use these rules for every text edit in this project.
 
 ## Important files
 
-- `FastKey.ahk`
+- `VibeFast.ahk`
 - `WebUI/index.html`
-- `FastKeySetup.iss`
+- `VibeFastSetup.iss`
 - `README.md`
 - `Docs/*.md`
 
@@ -24,6 +24,16 @@ If Gemini or any other tool edits project files, it should:
 2. Prefer `UTF-8 with BOM` when rewriting a file
 3. Avoid bulk rewrite operations unless encoding is explicit
 4. Avoid mixing different save methods on the same file in the same task
+
+## Shared workspace rule
+
+When multiple tools or collaborators are editing the project at the same time:
+
+1. Do not restore a file from Git just because it looks cleaner or older
+2. Do not treat the Git baseline as the latest correct state by default
+3. Check whether newer local workspace changes exist before using checkout or rollback
+4. Prefer minimal targeted fixes over whole-file restore operations
+5. If frontend or UI work is actively in progress, avoid overwriting those files from an older baseline unless the user explicitly asks for it
 
 ## Reason
 

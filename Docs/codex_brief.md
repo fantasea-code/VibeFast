@@ -3,9 +3,9 @@
 ## Project summary
 
 - Stack: AutoHotkey v2 + WebView2
-- Main entry: `F:\CODE\FastKey\FastKey.ahk`
-- Frontend: `F:\CODE\FastKey\WebUI\index.html`
-- Config: `F:\CODE\FastKey\config.ini`
+- Main entry: `F:\CODE\VibeFast\VibeFast.ahk`
+- Frontend: `F:\CODE\VibeFast\WebUI\index.html`
+- Config: `F:\CODE\VibeFast\config.ini`
 
 ## Main conclusions
 
@@ -15,8 +15,8 @@
 
 ### Bluetooth support depends on what Windows exposes
 
-- If a Bluetooth device exposes standard HID input or media-control collections, FastKey can often see it.
-- If a Bluetooth device behaves like audio or hands-free control only, FastKey usually cannot see device-level button events.
+- If a Bluetooth device exposes standard HID input or media-control collections, VIBE FAST can often see it.
+- If a Bluetooth device behaves like audio or hands-free control only, VIBE FAST usually cannot see device-level button events.
 
 `Mic Mini` Bluetooth mode currently looks closer to the second case.
 
@@ -39,10 +39,10 @@
 
 ## Key files
 
-- `FastKey.ahk`: main logic
+- `VibeFast.ahk`: main logic
 - `WebUI/index.html`: frontend
 - `DevTools/rawinput_trace.log`: debug log
-- `FastKeySetup.iss`: installer
+- `VibeFastSetup.iss`: installer
 
 ## Reminder
 
