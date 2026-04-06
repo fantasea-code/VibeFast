@@ -113,6 +113,7 @@ VIBE FAST 适合这种场景：
 - 映射改动默认自动保存。
 - `启动拦截` 只负责启动后台拦截流程。
 - 文本文件建议统一使用 UTF-8，避免不明确编码的覆盖写入。
+- 项目自身许可证见 `LICENSE`，第三方组件说明见 `THIRD_PARTY_NOTICES.md`。
 
 <a id="english"></a>
 
@@ -227,3 +228,4 @@ At the moment, the best-supported usage path is button mapping through receivers
 - Mapping changes are auto-saved by default
 - `启动拦截` only starts the background interception flow
 - It is recommended to keep text files in UTF-8 to avoid overwriting files with uncertain encodings
+- See `LICENSE` for the project license and `THIRD_PARTY_NOTICES.md` for third-party component notices
