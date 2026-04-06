@@ -1,4 +1,4 @@
-﻿; ============================================================
+; ============================================================
 ;  VibeFast v2 - Inno Setup packaging script
 ; ============================================================
 
@@ -23,7 +23,7 @@ Source: "VibeFast.ahk"; DestDir: "{app}"; Flags: ignoreversion
 Source: "app_icon.ico"; DestDir: "{app}"; Flags: ignoreversion
 Source: "WebView2Loader.dll"; DestDir: "{app}"; Flags: ignoreversion
 Source: "WebUI\*"; DestDir: "{app}\WebUI"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "C:\Users\31523\Downloads\AutoHotkey_2.0.21_setup.exe"; DestDir: "{tmp}"; Flags: deleteafterinstall
+Source: "_build\AutoHotkey_2.0.21_setup.exe"; DestDir: "{tmp}"; Flags: deleteafterinstall
 
 [Tasks]
 Name: "startmenuicon"; Description: "创建开始菜单快捷方式"; Flags: unchecked
