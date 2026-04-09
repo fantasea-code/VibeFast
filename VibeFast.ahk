@@ -2077,7 +2077,7 @@ if RegExMatch(token, "^[A-Z]$")
 
 return StrLower(token)
 
-if RegExMatch(token, "^(Enter|Escape|Space|Tab|Backspace|Delete|Up|Down|Left|Right|Home|End|PgUp|PgDn|F\d{1,2})$")
+if RegExMatch(token, "^(Enter|Escape|Space|Tab|Backspace|Delete|Up|Down|Left|Right|Home|End|PgUp|PgDn|F\d{1,2}|LControl|RControl|LAlt|RAlt|LShift|RShift|LWin|RWin|AppsKey)$")
 
 return "{" token "}"
 
@@ -2323,6 +2323,7 @@ if (modifiers.Length > 0)
         return true
 
 return RegExMatch(mainKey, "^(Enter|Escape|Space|Tab|Backspace|Delete|Insert|Up|Down|Left|Right|Home|End|PgUp|PgDn|F\d{1,2})$")
+    || RegExMatch(mainKey, "^(LControl|RControl|LAlt|RAlt|LShift|RShift|LWin|RWin|AppsKey)$")
 
 }
 
@@ -2364,6 +2365,61 @@ return ""
 
 }
 
+GetPressedStandaloneModifierKey() {
+
+; Preserve left/right only when the captured hotkey is a lone modifier key.
+if (GetKeyState("LControl", "P") && !GetKeyState("RControl", "P")
+        && !GetKeyState("LAlt", "P") && !GetKeyState("RAlt", "P")
+        && !GetKeyState("LShift", "P") && !GetKeyState("RShift", "P")
+        && !GetKeyState("LWin", "P") && !GetKeyState("RWin", "P"))
+        return "LControl"
+
+if (GetKeyState("RControl", "P") && !GetKeyState("LControl", "P")
+        && !GetKeyState("LAlt", "P") && !GetKeyState("RAlt", "P")
+        && !GetKeyState("LShift", "P") && !GetKeyState("RShift", "P")
+        && !GetKeyState("LWin", "P") && !GetKeyState("RWin", "P"))
+        return "RControl"
+
+if (GetKeyState("LAlt", "P") && !GetKeyState("RAlt", "P")
+        && !GetKeyState("LControl", "P") && !GetKeyState("RControl", "P")
+        && !GetKeyState("LShift", "P") && !GetKeyState("RShift", "P")
+        && !GetKeyState("LWin", "P") && !GetKeyState("RWin", "P"))
+        return "LAlt"
+
+if (GetKeyState("RAlt", "P") && !GetKeyState("LAlt", "P")
+        && !GetKeyState("LControl", "P") && !GetKeyState("RControl", "P")
+        && !GetKeyState("LShift", "P") && !GetKeyState("RShift", "P")
+        && !GetKeyState("LWin", "P") && !GetKeyState("RWin", "P"))
+        return "RAlt"
+
+if (GetKeyState("LShift", "P") && !GetKeyState("RShift", "P")
+        && !GetKeyState("LControl", "P") && !GetKeyState("RControl", "P")
+        && !GetKeyState("LAlt", "P") && !GetKeyState("RAlt", "P")
+        && !GetKeyState("LWin", "P") && !GetKeyState("RWin", "P"))
+        return "LShift"
+
+if (GetKeyState("RShift", "P") && !GetKeyState("LShift", "P")
+        && !GetKeyState("LControl", "P") && !GetKeyState("RControl", "P")
+        && !GetKeyState("LAlt", "P") && !GetKeyState("RAlt", "P")
+        && !GetKeyState("LWin", "P") && !GetKeyState("RWin", "P"))
+        return "RShift"
+
+if (GetKeyState("LWin", "P") && !GetKeyState("RWin", "P")
+        && !GetKeyState("LControl", "P") && !GetKeyState("RControl", "P")
+        && !GetKeyState("LAlt", "P") && !GetKeyState("RAlt", "P")
+        && !GetKeyState("LShift", "P") && !GetKeyState("RShift", "P"))
+        return "LWin"
+
+if (GetKeyState("RWin", "P") && !GetKeyState("LWin", "P")
+        && !GetKeyState("LControl", "P") && !GetKeyState("RControl", "P")
+        && !GetKeyState("LAlt", "P") && !GetKeyState("RAlt", "P")
+        && !GetKeyState("LShift", "P") && !GetKeyState("RShift", "P"))
+        return "RWin"
+
+return ""
+
+}
+
 BuildAccelCapturedHotkey() {
     global HotkeyCaptureAccelKey, HotkeyCaptureAccelTick, HotkeyCaptureAccelModifiers
 
@@ -2388,6 +2444,10 @@ BuildCapturedHotkey() {
 accelHotkey := BuildAccelCapturedHotkey()
     if (accelHotkey != "")
         return accelHotkey
+
+standaloneModifier := GetPressedStandaloneModifierKey()
+    if (standaloneModifier != "")
+        return standaloneModifier
 
 parts := []
 
