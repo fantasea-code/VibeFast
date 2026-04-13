@@ -41,19 +41,6 @@ ApplyAutoStartSetting()
 
 ^Esc::ExitApp
 
-~Volume_Up::AppendDebugLog("HOTKEY Volume_Up")
-
-~Volume_Down::AppendDebugLog("HOTKEY Volume_Down")
-
-~Volume_Mute::AppendDebugLog("HOTKEY Volume_Mute")
-
-~Media_Play_Pause::AppendDebugLog("HOTKEY Media_Play_Pause")
-
-~Media_Next::AppendDebugLog("HOTKEY Media_Next")
-
-~Media_Prev::AppendDebugLog("HOTKEY Media_Prev")
-
-~Media_Stop::AppendDebugLog("HOTKEY Media_Stop")
 
 #Include <WebView2>
 
@@ -112,11 +99,15 @@ global HotkeyCaptureAccelTick         := 0
 global HotkeyCaptureAccelModifiers    := []
 global HotkeyCaptureRegisteredHotkeys := []
 global HotkeyCaptureSuspendedHooks    := false
+global HotkeyCaptureKind              := "target"
+global HotkeyCaptureStartedHooks      := false
 
 ; ── 映射 ──
 global Mappings         := []
 global LastTriggerAt    := Map()
 global MappingDebounceMs := 220
+global RegisteredGlobalHotkeys := []
+global IsSendingMappedHotkey := false
 
 ResetDebugLog()
 
@@ -644,7 +635,7 @@ parts := StrSplit(payload, ",")
 
 if (parts.Length >= 2)
 
-StartHotkeyCapture(Integer(parts[1]), Integer(parts[2]))
+StartHotkeyCapture(Integer(parts[1]), Integer(parts[2]), parts.Length >= 3 ? parts[3] : "target")
 
 }
 
@@ -815,13 +806,71 @@ return names.Has(cmd) ? names[cmd] : "UNKNOWN"
 
 }
 
+GetAppCommandHotkey(cmd) {
+
+switch GetAppCommandName(cmd) {
+        case "VOLUME_UP":
+            return "Volume_Up"
+        case "VOLUME_DOWN":
+            return "Volume_Down"
+        case "VOLUME_MUTE":
+            return "Volume_Mute"
+        case "MEDIA_PLAY_PAUSE":
+            return "Media_Play_Pause"
+        case "MEDIA_NEXTTRACK":
+            return "Media_Next"
+        case "MEDIA_PREVIOUSTRACK":
+            return "Media_Prev"
+        case "MEDIA_STOP":
+            return "Media_Stop"
+        default:
+            return ""
+    }
+
+}
+
+GetAppCommandToken(cmd) {
+    name := GetAppCommandName(cmd)
+    hotkey := GetAppCommandHotkey(cmd)
+    if (hotkey != "")
+        return hotkey
+    if (name = "" || name = "UNKNOWN")
+        return ""
+    return "APPCOMMAND:" name
+}
+
+GetKnownHidAhkKey(vid, pid, source) {
+    source := NormalizeGlobalKey(source)
+    ; Known DJI Mic Mini receiver aliases.
+    if (vid = 0x2CA3 && pid = 0x4011) {
+        static djiMap := Map(
+            "HID:060100", "Volume_Up"
+        )
+        if djiMap.Has(source)
+            return djiMap[source]
+    }
+    return ""
+}
+
 HandleAppCommand(wParam, lParam, msg, hwnd) {
+
+global IsHotkeyCapturing, HotkeyCaptureKind, Paused, Mappings
 
 cmd := (lParam >> 16) & 0x7FF
 
 device := (lParam >> 24) & 0xF
 
-AppendDebugLog("WM_APPCOMMAND cmd=" cmd " name=" GetAppCommandName(cmd) " device=" device " hwnd=" hwnd)
+name := GetAppCommandName(cmd)
+hotkey := GetAppCommandToken(cmd)
+
+AppendDebugLog("WM_APPCOMMAND cmd=" cmd " name=" name " hotkey=" hotkey " device=" device " hwnd=" hwnd)
+
+if (hotkey != "" && IsHotkeyCapturing && HotkeyCaptureKind = "source") {
+        AppendDebugLog("Ignore appcommand during global capture key=" hotkey)
+        return 0
+    }
+
+return
 
 }
 
@@ -861,7 +910,9 @@ json := "["
 
 for m in Mappings {
 
-src := FormatSourceForUi(m.source)
+mode := GetMappingMode(m)
+src := (mode = "globalKey") ? "" : FormatSourceForUi(m.source)
+globalKey := (mode = "globalKey" && m.HasOwnProp("globalKey")) ? EscapeJS(m.globalKey) : ""
 
 pidStr := m.HasOwnProp("pid") ? m.pid : 0
 
@@ -869,7 +920,7 @@ vidStr := m.HasOwnProp("vid") ? m.vid : 0
 
 enabled := m.HasOwnProp("enabled") ? m.enabled : true
 
-json .= '{"vid":' vidStr ',"pid":' pidStr ',"source":"' src '","hk1":"' EscapeJS(m.hk1) '","hk2":"' EscapeJS(m.hk2) '","hk3":"' EscapeJS(m.hk3) '","enabled":' (enabled ? "true" : "false") '},'
+json .= '{"vid":' vidStr ',"pid":' pidStr ',"mode":"' mode '","source":"' src '","globalKey":"' globalKey '","hk1":"' EscapeJS(m.hk1) '","hk2":"' EscapeJS(m.hk2) '","hk3":"' EscapeJS(m.hk3) '","enabled":' (enabled ? "true" : "false") '},'
 
 }
 
@@ -946,6 +997,80 @@ return src
 
 }
 
+GetMappingMode(m) {
+
+if (m.HasOwnProp("mode") && m.mode = "globalKey")
+        return "globalKey"
+
+return "deviceRawInput"
+
+}
+
+NormalizeGlobalKey(hotkey) {
+    hotkey := Trim(hotkey)
+    if (hotkey = "")
+        return ""
+
+    if RegExMatch(hotkey, "i)^(HID:|K:|M:|APPCOMMAND:)")
+        return StrUpper(RegExReplace(hotkey, "\s+", ""))
+
+    parts := StrSplit(hotkey, "+")
+    normalizedParts := []
+    for rawPart in parts {
+        token := NormalizeHotkeyToken(rawPart)
+        if (token = "")
+            continue
+        normalizedParts.Push(token)
+    }
+
+    if (normalizedParts.Length = 0)
+        return ""
+
+    return JoinHotkeyParts(normalizedParts)
+}
+
+TranslateRawInputSourceToAhkKey(source, vid := 0, pid := 0) {
+    source := NormalizeGlobalKey(source)
+    if RegExMatch(source, "^K:([0-9A-F]{4})$", &m) {
+        vk := Integer("0x" m[1])
+        if (vk <= 0)
+            return ""
+        keyName := GetKeyName(Format("vk{:02X}", vk))
+        if (keyName = "")
+            return ""
+        return NormalizeHotkeyToken(keyName)
+    }
+    if RegExMatch(source, "^APPCOMMAND:(.+)$", &m) {
+        switch m[1] {
+            case "VOLUME_UP":
+                return "Volume_Up"
+            case "VOLUME_DOWN":
+                return "Volume_Down"
+            case "VOLUME_MUTE":
+                return "Volume_Mute"
+            case "MEDIA_PLAY_PAUSE":
+                return "Media_Play_Pause"
+            case "MEDIA_NEXTTRACK":
+                return "Media_Next"
+            case "MEDIA_PREVIOUSTRACK":
+                return "Media_Prev"
+            case "MEDIA_STOP":
+                return "Media_Stop"
+        }
+    }
+    return GetKnownHidAhkKey(vid, pid, source)
+}
+
+JoinHotkeyParts(parts) {
+    out := ""
+    for token in parts {
+        if (out != "")
+            out .= " + "
+        out .= token
+    }
+    return out
+}
+
 GetSourceMatchScore(mappingSource, reportHex) {
 
 mappingSource := NormalizeMappingSource(mappingSource)
@@ -984,7 +1109,11 @@ return GetSourceMatchScore(mappingSource, reportHex) > 0
 
 BuildMappingKey(m) {
 
-return m.vid "|" m.pid "|" NormalizeMappingSource(m.source)
+mode := GetMappingMode(m)
+if (mode = "globalKey")
+        return "G|" NormalizeGlobalKey(m.globalKey)
+
+return "D|" m.vid "|" m.pid "|" NormalizeMappingSource(m.source)
 
 }
 
@@ -1107,6 +1236,10 @@ m_pidHex := IniRead(CONFIG_FILE, sec, "PID", "0")
 
 src := IniRead(CONFIG_FILE, sec, "Source", "")
 
+mode := IniRead(CONFIG_FILE, sec, "Mode", "deviceRawInput")
+
+globalKey := IniRead(CONFIG_FILE, sec, "GlobalKey", "")
+
 hk1 := IniRead(CONFIG_FILE, sec, "HK1", "")
 
 hk2 := IniRead(CONFIG_FILE, sec, "HK2", "")
@@ -1115,15 +1248,23 @@ hk3 := IniRead(CONFIG_FILE, sec, "HK3", "")
 
 enabled := IniRead(CONFIG_FILE, sec, "Enabled", "1")
 
-src := NormalizeMappingSource(src)
-
-if (src != "") {
-
 vidInt := Integer("0x" m_vidHex)
 
 pidInt := Integer("0x" m_pidHex)
 
-Mappings.Push({vid: vidInt, pid: pidInt, source: src, hk1: hk1, hk2: hk2, hk3: hk3, step: 1, enabled: (enabled == "1")})
+mode := (mode = "globalKey") ? "globalKey" : "deviceRawInput"
+src := NormalizeMappingSource(src)
+globalKey := NormalizeGlobalKey(globalKey)
+
+if (mode = "globalKey") {
+
+if (globalKey != "")
+
+Mappings.Push({vid: 0, pid: 0, mode: mode, source: "", globalKey: globalKey, hk1: hk1, hk2: hk2, hk3: hk3, step: 1, enabled: (enabled == "1")})
+
+} else if (src != "") {
+
+Mappings.Push({vid: vidInt, pid: pidInt, mode: mode, source: src, globalKey: "", hk1: hk1, hk2: hk2, hk3: hk3, step: 1, enabled: (enabled == "1")})
 
 }
 
@@ -1147,21 +1288,31 @@ pos := 1
 
 ; 我们简单匹配关键字段，不需要强依赖JSON结构顺序
 
-pattern := "\{" Chr(34) "vid" Chr(34) ":(\d+)," Chr(34) "pid" Chr(34) ":(\d+)," Chr(34) "source" Chr(34) ":" Chr(34) "(.*?)" Chr(34) "," Chr(34) "hk1" Chr(34) ":" Chr(34) "(.*?)" Chr(34) "," Chr(34) "hk2" Chr(34) ":" Chr(34) "(.*?)" Chr(34) "," Chr(34) "hk3" Chr(34) ":" Chr(34) "(.*?)" Chr(34) "," Chr(34) "enabled" Chr(34) ":(true|false)\}"
+pattern := "\{[^{}]*\}"
 
 while (pos := RegExMatch(jsonStr, pattern, &m, pos)) {
 
-src := NormalizeMappingSource(m[3])
+obj := m[0]
+vidInt := ReadJsonIntField(obj, "vid", 0)
+pidInt := ReadJsonIntField(obj, "pid", 0)
+mode := ReadJsonStringField(obj, "mode", "deviceRawInput")
+src := NormalizeMappingSource(ReadJsonStringField(obj, "source", ""))
+globalKey := NormalizeGlobalKey(ReadJsonStringField(obj, "globalKey", ""))
+hk1 := ReadJsonStringField(obj, "hk1", "")
+hk2 := ReadJsonStringField(obj, "hk2", "")
+hk3 := ReadJsonStringField(obj, "hk3", "")
+isEnabled := ReadJsonBoolField(obj, "enabled", true)
+mode := (mode = "globalKey") ? "globalKey" : "deviceRawInput"
 
-isEnabled := (m[7] == "true")
+if (mode = "globalKey") {
 
-if (src != "") {
+if (globalKey != "")
 
-vidInt := Integer(m[1])
+Mappings.Push({vid: 0, pid: 0, mode: mode, source: "", globalKey: globalKey, hk1: hk1, hk2: hk2, hk3: hk3, step: 1, enabled: isEnabled})
 
-pidInt := Integer(m[2])
+} else if (src != "") {
 
-Mappings.Push({vid: vidInt, pid: pidInt, source: src, hk1: m[4], hk2: m[5], hk3: m[6], step: 1, enabled: isEnabled})
+Mappings.Push({vid: vidInt, pid: pidInt, mode: mode, source: src, globalKey: "", hk1: hk1, hk2: hk2, hk3: hk3, step: 1, enabled: isEnabled})
 
 }
 
@@ -1176,18 +1327,22 @@ NormalizeMappingsState()
 
 NormalizeMappingsState() {
 
-global Mappings, ActiveWhitelist
+global Mappings, ActiveWhitelist, HooksActive
 
 Mappings := DeduplicateMappings(Mappings)
     ActiveWhitelist.Clear()
 
 for m in Mappings {
 
-if (m.enabled)
+if (m.enabled && GetMappingMode(m) = "deviceRawInput")
 
 ActiveWhitelist[m.vid "_" m.pid] := true
 
 }
+
+if HooksActive
+
+RefreshGlobalKeyHotkeys()
 
 }
 
@@ -1209,7 +1364,11 @@ IniWrite(Format("{:04X}", m.vid), CONFIG_FILE, sec, "VID")
 
 IniWrite(Format("{:04X}", m.pid), CONFIG_FILE, sec, "PID")
 
+IniWrite(GetMappingMode(m), CONFIG_FILE, sec, "Mode")
+
 IniWrite(m.source, CONFIG_FILE, sec, "Source")
+
+IniWrite(m.HasOwnProp("globalKey") ? m.globalKey : "", CONFIG_FILE, sec, "GlobalKey")
 
 IniWrite(m.hk1, CONFIG_FILE, sec, "HK1")
 
@@ -1246,6 +1405,88 @@ switch stepIdx {
 
 SaveMappingsToConfig()
     return true
+
+}
+
+CommitCapturedGlobalKey(rowIdx, hotkey) {
+
+global Mappings, HooksActive
+
+mappingIdx := rowIdx + 1
+
+if (mappingIdx < 1 || mappingIdx > Mappings.Length)
+
+return false
+
+hotkey := NormalizeGlobalKey(hotkey)
+
+if (hotkey = "" || !IsDirectAhkGlobalKey(hotkey))
+
+return false
+
+Mappings[mappingIdx].mode := "globalKey"
+Mappings[mappingIdx].vid := 0
+Mappings[mappingIdx].pid := 0
+Mappings[mappingIdx].source := ""
+Mappings[mappingIdx].globalKey := hotkey
+
+SaveMappingsToConfig()
+
+if HooksActive
+
+RefreshGlobalKeyHotkeys()
+
+return true
+
+}
+
+ReadJsonStringField(obj, field, default := "") {
+
+q := Chr(34)
+pattern := q field q ":" q "(.*?)" q
+
+if RegExMatch(obj, pattern, &m)
+
+return UnescapeJsonString(m[1])
+
+return default
+
+}
+
+ReadJsonIntField(obj, field, default := 0) {
+
+q := Chr(34)
+pattern := q field q ":(-?\d+)"
+
+if RegExMatch(obj, pattern, &m)
+
+return Integer(m[1])
+
+return default
+
+}
+
+ReadJsonBoolField(obj, field, default := false) {
+
+q := Chr(34)
+pattern := q field q ":(true|false)"
+
+if RegExMatch(obj, pattern, &m)
+
+return (m[1] = "true")
+
+return default
+
+}
+
+UnescapeJsonString(value) {
+
+value := StrReplace(value, "\" Chr(34), Chr(34))
+value := StrReplace(value, "\\", "\")
+value := StrReplace(value, "\n", "`n")
+value := StrReplace(value, "\r", "`r")
+
+return value
 
 }
 
@@ -1635,6 +1876,7 @@ NumPut("Ptr", hwnd, rid, offset + 8)
 }
 
 DllCall("RegisterRawInputDevices", "Ptr", rid, "UInt", usages.Length, "UInt", cbSize)
+    RefreshGlobalKeyHotkeys()
 
 }
 
@@ -1680,6 +1922,161 @@ NumPut("Ptr", 0, rid, offset + 8)
 }
 
 DllCall("RegisterRawInputDevices", "Ptr", rid, "UInt", usages.Length, "UInt", cbSize)
+    DisableGlobalKeyHotkeys()
+
+}
+
+RefreshGlobalKeyHotkeys() {
+
+global HooksActive, Mappings, RegisteredGlobalHotkeys
+
+DisableGlobalKeyHotkeys()
+
+if !HooksActive
+
+return
+
+loop Mappings.Length {
+
+m := Mappings[A_Index]
+
+if !(m.enabled && GetMappingMode(m) = "globalKey")
+
+continue
+
+if !IsDirectAhkGlobalKey(m.globalKey)
+
+continue
+
+spec := BuildAhkHotkeySpec(m.globalKey, true)
+
+if (spec = "")
+
+continue
+
+handler := HandleGlobalIntercept.Bind(A_Index)
+
+try {
+
+Hotkey(spec, handler, "On")
+RegisteredGlobalHotkeys.Push({spec: spec, handler: handler})
+AppendDebugLog("Register globalKey idx=" A_Index " spec=" spec)
+
+} catch Error as err {
+
+AppendDebugLog("Register globalKey failed idx=" A_Index " spec=" spec " msg=" err.Message)
+
+}
+
+}
+
+}
+
+DisableGlobalKeyHotkeys() {
+
+global RegisteredGlobalHotkeys
+
+for binding in RegisteredGlobalHotkeys {
+
+try Hotkey(binding.spec, binding.handler, "Off")
+
+}
+
+RegisteredGlobalHotkeys := []
+
+}
+
+HandleGlobalIntercept(mappingIdx, *) {
+
+global Mappings, Paused, IsSendingMappedHotkey
+
+if Paused
+
+return
+
+if IsSendingMappedHotkey
+
+return
+
+if (mappingIdx < 1 || mappingIdx > Mappings.Length)
+
+return
+
+m := Mappings[mappingIdx]
+
+if !(m.enabled && GetMappingMode(m) = "globalKey")
+
+return
+
+TriggerGlobalMapping(mappingIdx, "hotkey")
+
+}
+
+TriggerGlobalMapping(mappingIdx, sourceKind := "") {
+
+global Mappings, Paused, IsSendingMappedHotkey
+
+if Paused
+
+return
+
+if IsSendingMappedHotkey
+
+return
+
+if (mappingIdx < 1 || mappingIdx > Mappings.Length)
+
+return
+
+m := Mappings[mappingIdx]
+
+if !(m.enabled && GetMappingMode(m) = "globalKey")
+
+return
+
+mappingKey := BuildMappingKey(m)
+
+if !ShouldFireMapping(mappingKey)
+
+return
+
+targetHK := ""
+
+if (m.step == 1)
+
+targetHK := m.hk1
+
+else if (m.step == 2)
+
+targetHK := m.hk2
+
+else if (m.step == 3)
+
+targetHK := m.hk3
+
+if (targetHK == "") {
+
+m.step := 1
+targetHK := m.hk1
+
+}
+
+if (targetHK != "") {
+
+AppendDebugLog("Trigger global mapping key=" mappingKey " kind=" sourceKind " step=" m.step " source=" m.globalKey " hotkey=" targetHK)
+QueueMappedHotkey(targetHK)
+
+} else {
+
+AppendDebugLog("Trigger global mapping key=" mappingKey " kind=" sourceKind " step=" m.step " source=" m.globalKey " hotkey=<empty>")
+
+}
+
+m.step++
+
+if (m.step > 3)
+
+m.step := 1
 
 }
 
@@ -1698,7 +2095,9 @@ DllCall("RegisterRawInputDevices", "Ptr", rid, "UInt", usages.Length, "UInt", cb
 HandleRawInput(wParam, lParam, msg, hwnd) {
 
 global DeviceHandleMap, IsCapturing, CaptureRowIdx, CaptureShouldStopHooks
-    global Mappings, Paused, ActiveWhitelist
+    global Mappings, Paused, ActiveWhitelist, IsHotkeyCapturing, HotkeyCaptureKind, HotkeyCaptureRow
+
+isSourceCapture := (IsHotkeyCapturing && HotkeyCaptureKind = "source")
 
 ; 绝不能使用 Critical "On"。它会强制 Windows 底层输入列队等待 AHK 处理，
 
@@ -1750,7 +2149,7 @@ pid := dev.pid
 
 ; 如果是不认识的设备在发数据，且不在全捕获模式，直接丢弃！绝对不要当场查！
 
-if (!IsCapturing)
+if (!IsCapturing && !isSourceCapture)
 
 return
 
@@ -1774,7 +2173,7 @@ DeviceHandleMap[hDevice] := {vid: vid, pid: pid, type: type}
 
 ; 2. 拦截模式过滤：如果这台设备不在放行白名单里，光速返回！O(1) 零开销防止鼠标掉帧！
 
-if (!IsCapturing && !ActiveWhitelist.Has(vid "_" pid)) {
+if (!IsCapturing && !isSourceCapture && !ActiveWhitelist.Has(vid "_" pid)) {
 
 return
 
@@ -1850,6 +2249,21 @@ AppendDebugLog("Event type=" type " vid=" Format("{:04X}", vid) " pid=" Format("
 
 ; --- 分流处理 ---
 
+if (IsHotkeyCapturing && HotkeyCaptureKind = "source") {
+
+translatedHotkey := TranslateRawInputSourceToAhkKey(fmtHex, vid, pid)
+if (translatedHotkey != "") {
+        AppendDebugLog("Capture global source via translated rawinput key=" translatedHotkey " source=" fmtHex)
+        PushHotkeyCaptureValue(translatedHotkey, true)
+        StopHotkeyCapture(true)
+        return
+    }
+
+AppendDebugLog("Ignore non-AHK global source rawinput source=" fmtHex " vid=" Format("{:04X}", vid) " pid=" Format("{:04X}", pid))
+return
+
+}
+
 if (IsCapturing && CaptureRowIdx >= 0) {
 
 IsCapturing := false
@@ -1886,8 +2300,10 @@ loop Mappings.Length {
 
 m := Mappings[A_Index]
 
-if !(m.enabled && m.vid == vid && m.pid == pid)
+if !m.enabled
+continue
 
+if !(m.vid == vid && m.pid == pid)
 continue
 
 score := GetSourceMatchScore(m.source, reportHex)
@@ -1978,13 +2394,33 @@ static aliases := Map(
 
 "CTRL", "Ctrl",
 
+"LCONTROL", "LCtrl",
+
+"LCTRL", "LCtrl",
+
+"RCONTROL", "RCtrl",
+
+"RCTRL", "RCtrl",
+
 "ALT", "Alt",
 
+"LALT", "LAlt",
+
+"RALT", "RAlt",
+
 "SHIFT", "Shift",
+
+"LSHIFT", "LShift",
+
+"RSHIFT", "RShift",
 
 "WIN", "Win",
 
 "WINDOWS", "Win",
+
+"LWIN", "LWin",
+
+"RWIN", "RWin",
 
 "SPACE", "Space",
 
@@ -2018,7 +2454,21 @@ static aliases := Map(
 
 "HOME", "Home",
 
-"END", "End"
+"END", "End",
+
+"VOLUME_UP", "Volume_Up",
+
+"VOLUME_DOWN", "Volume_Down",
+
+"VOLUME_MUTE", "Volume_Mute",
+
+"MEDIA_PLAY_PAUSE", "Media_Play_Pause",
+
+"MEDIA_NEXT", "Media_Next",
+
+"MEDIA_PREV", "Media_Prev",
+
+"MEDIA_STOP", "Media_Stop"
 
 )
 
@@ -2077,7 +2527,7 @@ if RegExMatch(token, "^[A-Z]$")
 
 return StrLower(token)
 
-if RegExMatch(token, "^(Enter|Escape|Space|Tab|Backspace|Delete|Up|Down|Left|Right|Home|End|PgUp|PgDn|F\d{1,2})$")
+if RegExMatch(token, "^(Enter|Escape|Space|Tab|Backspace|Delete|Up|Down|Left|Right|Home|End|PgUp|PgDn|F\d{1,2}|Volume_Up|Volume_Down|Volume_Mute|Media_Play_Pause|Media_Next|Media_Prev|Media_Stop|LCtrl|RCtrl|LAlt|RAlt|LShift|RShift|LWin|RWin)$")
 
 return "{" token "}"
 
@@ -2137,6 +2587,73 @@ return modifierSpec BuildSendKeyName(mainKey)
 
 }
 
+ShouldUsePlainHotkeySpec(mainKey, modifierSpec := "") {
+
+if (modifierSpec != "")
+
+return false
+
+return RegExMatch(mainKey, "^(Volume_Up|Volume_Down|Volume_Mute|Media_Play_Pause|Media_Next|Media_Prev|Media_Stop)$")
+
+}
+
+IsDirectAhkGlobalKey(hotkey) {
+    hotkey := NormalizeGlobalKey(hotkey)
+    if (hotkey = "")
+        return false
+    return !RegExMatch(hotkey, "i)^(HID:|K:|M:|APPCOMMAND:)")
+}
+
+BuildAhkHotkeySpec(str, forceWildcard := false) {
+
+if (str == "")
+
+return ""
+
+parts := StrSplit(str, "+")
+modifierSpec := ""
+mainKey := ""
+
+for rawPart in parts {
+
+token := NormalizeHotkeyToken(rawPart)
+
+if (token = "")
+
+continue
+
+switch token {
+        case "Ctrl":
+            modifierSpec .= "^"
+        case "Alt":
+            modifierSpec .= "!"
+        case "Shift":
+            modifierSpec .= "+"
+        case "Win":
+            modifierSpec .= "#"
+        default:
+            if (mainKey = "")
+                mainKey := token
+    }
+
+}
+
+if (mainKey = "")
+
+return ""
+
+if RegExMatch(mainKey, "^[A-Z]$")
+
+mainKey := StrLower(mainKey)
+
+if (forceWildcard && !ShouldUsePlainHotkeySpec(mainKey, modifierSpec))
+
+modifierSpec := "*" modifierSpec
+
+return modifierSpec mainKey
+
+}
+
 BuildHotkeyCaptureBindings() {
     static bindings := ""
 
@@ -2147,6 +2664,10 @@ bindings := []
 
 for key in ["Space", "Tab", "Enter", "Escape", "Backspace", "Delete", "Insert", "Home", "End", "PgUp", "PgDn", "Up", "Down", "Left", "Right"] {
         bindings.Push({spec: "*" key, token: key})
+    }
+
+for key in ["Volume_Up", "Volume_Down", "Volume_Mute", "Media_Play_Pause", "Media_Next", "Media_Prev", "Media_Stop"] {
+        bindings.Push({spec: key, token: key})
     }
 
 Loop 26 {
@@ -2247,7 +2768,7 @@ combo := BuildCapturedHotkeyFromParts(BuildCapturedModifierList(), mainKey)
     if (combo = "")
         return
 
-AppendDebugLog("Capture hotkey combo=" combo " source=backend")
+    AppendDebugLog("Capture hotkey combo=" combo " source=ahk-hotkey")
     SetTimer(FinalizeCapturedHotkey.Bind(combo), -1)
 }
 
@@ -2322,7 +2843,7 @@ ShouldSendHotkeyViaEvent(modifiers, mainKey) {
 if (modifiers.Length > 0)
         return true
 
-return RegExMatch(mainKey, "^(Enter|Escape|Space|Tab|Backspace|Delete|Insert|Up|Down|Left|Right|Home|End|PgUp|PgDn|F\d{1,2})$")
+return RegExMatch(mainKey, "^(Enter|Escape|Space|Tab|Backspace|Delete|Insert|Up|Down|Left|Right|Home|End|PgUp|PgDn|F\d{1,2}|Volume_Up|Volume_Down|Volume_Mute|Media_Play_Pause|Media_Next|Media_Prev|Media_Stop|LCtrl|RCtrl|LAlt|RAlt|LShift|RShift|LWin|RWin)$")
 
 }
 
@@ -2344,6 +2865,8 @@ static keys := [
 "Space","Tab","Enter","Escape","Backspace","Delete","Insert",
 
 "Up","Down","Left","Right","Home","End","PgUp","PgDn",
+
+"Volume_Up","Volume_Down","Volume_Mute","Media_Play_Pause","Media_Next","Media_Prev","Media_Stop",
 
         ";","/","\",".",",","-","=","[","]","'","``"
     ]
@@ -2451,7 +2974,19 @@ return count
 
 PushHotkeyCaptureValue(hotkey, done := false) {
 
-global HotkeyCaptureRow, HotkeyCaptureStep
+global HotkeyCaptureRow, HotkeyCaptureStep, HotkeyCaptureKind
+
+if (HotkeyCaptureKind = "source") {
+
+if (done)
+
+CommitCapturedGlobalKey(HotkeyCaptureRow, hotkey)
+
+RunJS("SetGlobalKeyCapture(" HotkeyCaptureRow ", '" EscapeJS(hotkey) "', " (done ? "true" : "false") ");")
+
+return
+
+}
 
 if (done)
 
@@ -2511,14 +3046,14 @@ StopHotkeyCapture(true)
 
 }
 
-StartHotkeyCapture(rowIdx, stepIdx) {
+StartHotkeyCapture(rowIdx, stepIdx, captureKind := "target") {
 
 global IsHotkeyCapturing, HotkeyCaptureRow, HotkeyCaptureStep
 
 global HotkeyCaptureLastCombo, HotkeyCaptureBestCombo, HotkeyCaptureBestCount, HotkeyCaptureSeenInput
 
 global HotkeyCaptureBlockingInput, HotkeyCaptureAccelKey, HotkeyCaptureAccelTick, HotkeyCaptureAccelModifiers
-    global HotkeyCaptureSuspendedHooks, HooksActive
+    global HotkeyCaptureSuspendedHooks, HooksActive, HotkeyCaptureKind, HotkeyCaptureStartedHooks
 
 if IsHotkeyCapturing
 
@@ -2527,6 +3062,7 @@ StopHotkeyCapture()
 HotkeyCaptureRow := rowIdx
 
 HotkeyCaptureStep := stepIdx
+    HotkeyCaptureKind := (captureKind = "source") ? "source" : "target"
 
 HotkeyCaptureLastCombo := ""
 
@@ -2545,13 +3081,20 @@ HotkeyCaptureBlockingInput := false
     ; Keep capture accurate even if it is slightly less aggressive.
     HotkeyCaptureBlockingInput := false
     HotkeyCaptureSuspendedHooks := false
-    if HooksActive {
+    HotkeyCaptureStartedHooks := false
+    if (HotkeyCaptureKind = "source") {
+        if !HooksActive {
+            AppendDebugLog("StartHotkeyCapture enabling hooks for source capture")
+            StartHooks()
+            HotkeyCaptureStartedHooks := true
+        }
+    } else if HooksActive {
         AppendDebugLog("StartHotkeyCapture suspending hooks for capture")
         StopHooks()
         HotkeyCaptureSuspendedHooks := true
     }
     IsHotkeyCapturing := true
-    AppendDebugLog("StartHotkeyCapture row=" rowIdx " step=" stepIdx " hooksActive=" HooksActive)
+    AppendDebugLog("StartHotkeyCapture row=" rowIdx " step=" stepIdx " kind=" HotkeyCaptureKind " hooksActive=" HooksActive)
     EnableHotkeyCaptureHotkeys()
     SetTimer(PollHotkeyCapture, 10)
 }
@@ -2563,7 +3106,7 @@ global IsHotkeyCapturing, HotkeyCaptureRow, HotkeyCaptureStep
 global HotkeyCaptureLastCombo, HotkeyCaptureBestCombo, HotkeyCaptureBestCount, HotkeyCaptureSeenInput
 
 global HotkeyCaptureBlockingInput, HotkeyCaptureAccelKey, HotkeyCaptureAccelTick, HotkeyCaptureAccelModifiers
-    global HotkeyCaptureSuspendedHooks
+    global HotkeyCaptureSuspendedHooks, HotkeyCaptureKind, HotkeyCaptureStartedHooks
 
 SetTimer(PollHotkeyCapture, 0)
     DisableHotkeyCaptureHotkeys()
@@ -2603,12 +3146,19 @@ HotkeyCaptureSeenInput := false
 HotkeyCaptureAccelModifiers := []
 
 HotkeyCaptureSuspendedHooks := false
+    if HotkeyCaptureStartedHooks {
+        StopHooks()
+        HotkeyCaptureStartedHooks := false
+    }
+    HotkeyCaptureKind := "target"
 
 }
 
 SendMappedHotkey(str) {
 
-if (str == "")
+global IsSendingMappedHotkey
+
+if (str == "" || IsSendingMappedHotkey)
 
 return
 
@@ -2619,6 +3169,7 @@ if (mainKey = "")
 
 sendSpec := BuildSendHotkeySpec(str)
 
+IsSendingMappedHotkey := true
 try {
 
         if ShouldSendHotkeyViaEvent(modifiers, mainKey) {
@@ -2635,6 +3186,10 @@ SendInput(sendSpec)
 AppendDebugLog("Send hotkey raw=" str " mode=input spec=" sendSpec)
 
 }
+
+} finally {
+
+IsSendingMappedHotkey := false
 
 }
 

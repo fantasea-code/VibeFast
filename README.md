@@ -83,6 +83,8 @@ VIBE FAST 适合这种场景：
 
 ### 当前支持范围
 
+- `全局键位` 适用于可识别为 AHK 键名的输入，例如普通键盘键或标准媒体键。它不区分具体设备，可以直接吞掉原输入，再替换成你配置的目标快捷键。
+- `设备按键` 适用于通过 `RawInput` 识别的特定设备来源。它能精确区分设备，但不保证吞掉系统原始媒体键行为。
 - 接收器 / USB HID 模式是当前主支持路径，稳定性最好。
 - 蓝牙设备只有在 Windows 把它暴露成标准 HID 输入时，才比较容易被识别。
 - 配置修改会自动保存。
@@ -198,6 +200,8 @@ At the moment, the best-supported usage path is button mapping through receivers
 
 ### Current Support Range
 
+- `Global Key` is for inputs that can be recognized as AHK key names, such as normal keyboard keys or standard media keys. It is device-agnostic and can swallow the original input before replacing it with your configured shortcut.
+- `Device Button` is for specific device sources recognized through `RawInput`. It can distinguish devices precisely, but it does not guarantee swallowing the original system media-key behavior.
 - Receiver / USB HID mode is currently the main supported path and is the most stable
 - Bluetooth devices are easier to support only when Windows exposes them as standard HID input
 - Configuration changes are saved automatically

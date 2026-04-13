@@ -331,8 +331,218 @@
             margin-bottom: 16px;
 
         }
+        .refresh-btn {
+
+            background: none;
+
+            border: none;
+
+            color: var(--text-muted);
+
+            cursor: pointer;
+
+            padding: 4px;
+
+            border-radius: 4px;
+
+        }
+
+        .refresh-btn:hover {
+
+            background-color: var(--item-hover);
+
+            color: var(--text-main);
+
+        }
+
+        .device-list {
+
+            flex-grow: 1;
+
+            overflow-y: auto;
+
+            padding: 0 12px;
+
+        }
+
+        .device-item {
+
+            padding: 12px 16px;
+
+            margin-bottom: 4px;
+
+            border-radius: 6px;
+
+            cursor: pointer;
+
+            transition: all 0.2s ease;
+
+            position: relative;
+
+        }
+
+        .device-item:hover {
+
+            background-color: var(--item-hover);
+
+        }
+
+        .device-item.active {
+
+            background-color: var(--item-active);
+
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+
+        }
+
+        .device-item.active::before {
+
+            content: '';
+
+            position: absolute;
+
+            left: 0;
+
+            top: 10px;
+
+            bottom: 10px;
+
+            width: 3px;
+
+            background-color: var(--accent-color);
+
+            border-radius: 0 4px 4px 0;
+
+        }
+
+        .device-name {
+
+            font-size: 13px;
+
+            font-weight: bold;
+
+            margin-bottom: 4px;
+
+        }
+
+        .device-vidpid {
+
+            font-size: 11px;
+
+            color: var(--text-muted);
+
+        }
+
+        .main-content {
+
+            flex-grow: 1;
+
+            display: flex;
+
+            flex-direction: column;
+
+            background-color: #ffffff;
+
+        }
+
+        .content-header {
+
+            padding: 32px 40px 16px;
+
+            border-bottom: 1px solid var(--border-color);
+
+        }
+
+        .header-title {
+
+            font-size: var(--fs);
+
+            font-weight: 900;
+
+            color: var(--text-main);
+
+            margin-bottom: 8px;
+
+            letter-spacing: 0.5px;
+
+        }
+
+        .header-subtitle {
+
+            font-size: var(--fs);
+
+            color: var(--text-muted);
+
+        }
+
+        .mapping-area {
+
+            flex-grow: 1;
+
+            padding: 32px 40px;
+
+            overflow-y: auto;
+
+        }
+
+        .mapping-row {
+
+            background: #fafafa;
+
+            border: 1px solid var(--border-color);
+
+            border-radius: 8px;
+
+            padding: 20px;
+
+            margin-bottom: 16px;
+
+            position: relative;
+
+            transition: opacity 0.2s;
+
+        }
+
+        .mapping-row.disabled {
+
+            opacity: 0.4;
+
+        }
+
+        .mapping-row:hover {
+
+            border-color: #bbb;
+
+        }
+
+        .row-top {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 16px;
+            flex-wrap: wrap; /* 极端拥挤时允许整体折叠 */
+        }
 
         .source-section {
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            gap: 12px;
+            background: #f0f0f0;
+            padding: 8px 12px;
+            border-radius: 6px;
+        }
+
+        /* 当整体窗口宽度不足（比如收缩或打开了侧边栏）时，将源区域切为两行 */
+        @media (max-width: 850px) {
+            .source-section {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 8px;
+            }
+        }
+
+        .source-row {
 
             display: flex;
 
@@ -340,13 +550,51 @@
 
             gap: 12px;
 
-            flex-shrink: 0;
+        }
 
-            background: #f0f0f0;
+        .source-mode {
 
-            padding: 8px 12px;
+            padding: 6px 10px;
+
+            border: 1px solid var(--border-color);
+
+            border-radius: 4px;
+
+            background: #fff;
+
+            font-family: var(--font-mono);
+
+            font-size: 12px;
+
+        }
+
+        .source-key-input {
+
+            width: 120px;
+
+            padding: 8px 10px;
+
+            font-size: 13px;
+
+            font-family: var(--font-mono);
+
+            border: 1px solid var(--border-color);
 
             border-radius: 6px;
+
+            background-color: #ffffff;
+
+            box-sizing: border-box;
+
+            outline: none;
+
+        }
+
+        .source-key-input.listening {
+
+            background-color: #e8f5e9;
+
+            border-color: #4caf50;
 
         }
 
@@ -598,13 +846,13 @@
 
             position: absolute;
 
-            top: 12px;
+            top: 14px;
 
-            right: 12px;
+            right: 14px;
 
-            font-size: 11px;
+            font-size: 16px;
 
-            color: #999;
+            color: #ccc;
 
             background: none;
 
@@ -612,13 +860,25 @@
 
             cursor: pointer;
 
-            padding: 4px 8px;
+            padding: 4px;
+
+            display: flex;
+
+            align-items: center;
+
+            justify-content: center;
+
+            border-radius: 4px;
+
+            transition: all 0.2s;
 
         }
 
         .btn-del:hover {
 
-            color: #d32f2f;
+            color: #f44336;
+
+            background-color: #ffebee;
 
         }
 
@@ -869,6 +1129,7 @@
         let mappingsData = [];
         let settings = { autoStart: true };
         let listeningInput = null;
+        let listeningSourceInput = null;
         let autoSaveTimer = null;
 
         // ── Sidebar Resizer ──
@@ -997,6 +1258,13 @@
             });
 
             listeningInput = null;
+            document.querySelectorAll('.source-key-input.listening').forEach(input => {
+
+                input.classList.remove('listening');
+
+            });
+
+            listeningSourceInput = null;
 
         }
 
@@ -1129,6 +1397,10 @@
         function LoadMappings(mappingsJSON) {
 
             mappingsData = JSON.parse(mappingsJSON);
+            mappingsData.forEach(row => {
+                if (!row.mode) row.mode = 'deviceRawInput';
+                if (!('globalKey' in row)) row.globalKey = '';
+            });
 
             RenderMappings();
 
@@ -1152,6 +1424,7 @@
             if (mappingsData[index]) {
 
                 mappingsData[index].source = reportHex;
+                mappingsData[index].mode = 'deviceRawInput';
 
                 if (capVid !== undefined && capPid !== undefined) {
 
@@ -1163,6 +1436,41 @@
 
                 RenderMappings();
 
+                QueueAutoSave();
+
+            }
+
+        }
+
+        function SetGlobalKeyCapture(index, hotkey, done) {
+
+            if (mappingsData[index]) {
+
+                mappingsData[index].mode = 'globalKey';
+                mappingsData[index].globalKey = hotkey || '';
+                mappingsData[index].source = '';
+
+            }
+
+            const input = document.getElementById(`gk_${index}`);
+
+            if (input) {
+
+                input.innerText = hotkey || '未捕获';
+                if (!hotkey) input.classList.add('empty');
+                else input.classList.remove('empty');
+
+                if (done) {
+
+                    input.classList.remove('listening');
+
+                }
+
+            }
+
+            if (done && listeningSourceInput && listeningSourceInput.rowIdx === index) {
+
+                listeningSourceInput = null;
                 QueueAutoSave();
 
             }
@@ -1209,135 +1517,7 @@
 
         }
 
-        function RenderMappings() {
 
-            const area = document.getElementById('mappingArea');
-
-            area.innerHTML = '';
-
-            mappingsData.forEach((row, i) => {
-
-                if (currentDevice && (row.vid != currentDevice.vid || row.pid != currentDevice.pid)) return;
-
-                const rowEl = document.createElement('div');
-
-                const isEnabled = (row.enabled !== false);
-
-                rowEl.className = 'mapping-row' + (isEnabled ? '' : ' disabled');
-
-                let devBadgeHtml = '';
-
-                if (!currentDevice) {
-
-                    const devName = window.deviceMap[`${row.vid}_${row.pid}`] || `未知设备 (${row.vid}:${row.pid})`;
-
-                    devBadgeHtml = `<div class="device-vidpid" style="margin-bottom: 8px; color: var(--text-main); font-weight: 900;">[ ${devName} ]</div>`;
-
-                }
-
-                rowEl.innerHTML = `
-
-                    <button class="btn-del" onclick="DeleteRow(${i})">×</button>
-
-                    ${devBadgeHtml}
-
-                    <div class="row-top">
-
-                        <div class="source-section">
-
-                            <div class="label-sm">源信号</div>
-
-                            <div class="source-badge ${row.source ? '' : 'empty'}">${row.source || '未捕获'}</div>
-
-                            <button id="btnCap_${i}" class="btn-capture" onclick="StartCapture(${i})">捕获</button>
-
-                        </div>
-
-                        <div class="row-arrow">→</div>
-
-                        <div style="flex:1">
-
-                            <div class="label-sm" style="margin-bottom:0; color:var(--text-main);">目标快捷键（循环触发）</div>
-
-                        </div>
-
-                        <label class="switch" style="margin-left:12px" title="启用或停用映射">
-
-                            <input type="checkbox" onchange="ToggleEnable(${i}, this.checked)" ${isEnabled ? 'checked' : ''}>
-
-                            <span class="slider"></span>
-
-                        </label>
-
-                    </div>
-
-                    <div class="row-targets">
-
-                        <div class="step-col">
-
-                            <div class="label-sm">① 第 1 次</div>
-
-                            <input type="text" class="hotkey-input" id="hk_${i}_1" value="${row.hk1 || ''}" placeholder="点此录入..." readonly onfocus="StartListenHotkey(${i}, 1)" onclick="StartListenHotkey(${i}, 1)" onblur="StopListenHotkey(${i}, 1)" onkeydown="SuppressListeningKey(event)">
-
-                        </div>
-
-                        <div class="step-col">
-
-                            <div class="label-sm">② 第 2 次</div>
-
-                            <input type="text" class="hotkey-input" id="hk_${i}_2" value="${row.hk2 || ''}" placeholder="空=重置" readonly onfocus="StartListenHotkey(${i}, 2)" onclick="StartListenHotkey(${i}, 2)" onblur="StopListenHotkey(${i}, 2)" onkeydown="SuppressListeningKey(event)">
-
-                        </div>
-
-                        <div class="step-col">
-
-                            <div class="label-sm">③ 第 3 次</div>
-
-                            <input type="text" class="hotkey-input" id="hk_${i}_3" value="${row.hk3 || ''}" placeholder="空=重置" readonly onfocus="StartListenHotkey(${i}, 3)" onclick="StartListenHotkey(${i}, 3)" onblur="StopListenHotkey(${i}, 3)" onkeydown="SuppressListeningKey(event)">
-
-                        </div>
-
-                    </div>
-
-                `;
-
-                area.appendChild(rowEl);
-
-            });
-
-            if (!currentDevice) {
-
-                let devCount = document.querySelectorAll('.device-item').length - 1;
-
-                document.getElementById('curDevVidPid').innerText = `共 ${mappingsData.length} 条规则 (${devCount} 个设备)`;
-
-            }
-
-        }
-
-        function AddRow() {
-
-            let addVid = 0;
-
-            let addPid = 0;
-
-            if (currentDevice) {
-
-                addVid = currentDevice.vid;
-
-                addPid = currentDevice.pid;
-
-            }
-
-            mappingsData.push({ vid: addVid, pid: addPid, source: '', hk1: '', hk2: '', hk3: '', enabled: true });
-
-            RenderMappings();
-
-            document.getElementById('mappingArea').scrollTop = document.getElementById('mappingArea').scrollHeight;
-
-            QueueAutoSave();
-
-        }
 
         function ToggleEnable(index, checked) {
 
@@ -1438,16 +1618,6 @@
 
         }
 
-        function SuppressListeningKey(event) {
-
-            if (!listeningInput) return;
-
-            if (event.target !== listeningInput.el) return;
-
-            event.preventDefault();
-            event.stopPropagation();
-
-        }
 
         function StopListenHotkey(rowIdx, stepIdx) {
 
@@ -1480,6 +1650,189 @@
             listeningInput = null;
 
             traceUi('ResetTransientUiState');
+
+        }
+
+        function ChangeMode(index, mode) {
+
+            const row = mappingsData[index];
+            if (!row) return;
+
+            row.mode = mode === 'globalKey' ? 'globalKey' : 'deviceRawInput';
+            if (row.mode === 'globalKey') {
+                row.source = '';
+                row.vid = 0;
+                row.pid = 0;
+            } else if (currentDevice) {
+                row.vid = currentDevice.vid;
+                row.pid = currentDevice.pid;
+            }
+
+            RenderMappings();
+            QueueAutoSave();
+
+        }
+
+        function StartListenSourceKey(rowIdx) {
+
+            const input = document.getElementById(`gk_${rowIdx}`);
+            if (!input) return;
+
+            if (listeningSourceInput && listeningSourceInput.rowIdx === rowIdx) return;
+
+            if (listeningSourceInput && listeningSourceInput.el && listeningSourceInput.el !== input) {
+                listeningSourceInput.el.classList.remove('listening');
+                if (listeningSourceInput.el.innerText === '请按键...') {
+                    const prevRow = listeningSourceInput.rowIdx;
+                    listeningSourceInput.el.innerText = mappingsData[prevRow].globalKey || '未捕获';
+                    if (!mappingsData[prevRow].globalKey) listeningSourceInput.el.classList.add('empty');
+                }
+            }
+
+            input.classList.add('listening');
+            input.classList.remove('empty');
+            input.innerText = '请按键...';
+            listeningSourceInput = { rowIdx, el: input };
+            postMsg(`startHotkeyCapture:${rowIdx},0,source`);
+
+        }
+
+        function StopListenSourceKey(rowIdx) {
+
+            const input = document.getElementById(`gk_${rowIdx}`);
+            if (!input) return;
+
+            const isActiveInput = listeningSourceInput && listeningSourceInput.rowIdx === rowIdx;
+            input.classList.remove('listening');
+
+            if (input.innerText === '请按键...') {
+                input.innerText = mappingsData[rowIdx].globalKey || '未捕获';
+                if (!mappingsData[rowIdx].globalKey) input.classList.add('empty');
+            }
+
+            if (!isActiveInput) return;
+
+            postMsg('stopHotkeyCapture:');
+            listeningSourceInput = null;
+
+        }
+
+        function SuppressListeningKey(event) {
+
+            const isTargetListening = listeningInput && event.target === listeningInput.el;
+            const isSourceListening = listeningSourceInput && event.target === listeningSourceInput.el;
+            if (!isTargetListening && !isSourceListening) return;
+
+            event.preventDefault();
+            event.stopPropagation();
+
+        }
+
+        function AddRow() {
+
+            let addVid = 0;
+            let addPid = 0;
+
+            if (currentDevice) {
+                addVid = currentDevice.vid;
+                addPid = currentDevice.pid;
+            }
+
+            mappingsData.push({ vid: addVid, pid: addPid, mode: 'deviceRawInput', source: '', globalKey: '', hk1: '', hk2: '', hk3: '', enabled: true });
+
+            RenderMappings();
+
+            document.getElementById('mappingArea').scrollTop = document.getElementById('mappingArea').scrollHeight;
+
+            QueueAutoSave();
+
+        }
+
+        function RenderMappings() {
+
+            const area = document.getElementById('mappingArea');
+            area.innerHTML = '';
+
+            mappingsData.forEach((row, i) => {
+                if (!row.mode) row.mode = 'deviceRawInput';
+                if (!('globalKey' in row)) row.globalKey = '';
+
+                const isGlobalMode = row.mode === 'globalKey';
+                if (currentDevice && !isGlobalMode && (row.vid != currentDevice.vid || row.pid != currentDevice.pid)) return;
+
+                const rowEl = document.createElement('div');
+                const isEnabled = (row.enabled !== false);
+                rowEl.className = 'mapping-row' + (isEnabled ? '' : ' disabled');
+
+                let devBadgeHtml = '';
+                if (!currentDevice && !isGlobalMode) {
+                    const devName = window.deviceMap[`${row.vid}_${row.pid}`] || `未知设备 (${row.vid}:${row.pid})`;
+                    devBadgeHtml = `<div class="device-vidpid" style="margin-bottom: 8px; color: var(--text-main); font-weight: 900;">[ ${devName} ]</div>`;
+                } else if (!currentDevice && isGlobalMode) {
+                    devBadgeHtml = `<div class="device-vidpid" style="margin-bottom: 8px; color: var(--text-main); font-weight: 900;">[ 全局键位拦截 ]</div>`;
+                }
+
+                rowEl.innerHTML = `
+                    <button class="btn-del" onclick="DeleteRow(${i})" title="删除此映射">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                    </button>
+                    ${devBadgeHtml}
+                    <div class="row-top">
+                        <div class="source-section">
+                            <div class="source-row">
+                                <div class="label-sm">源信号</div>
+                                <select class="source-mode" onchange="ChangeMode(${i}, this.value)">
+                                    <option value="deviceRawInput" ${isGlobalMode ? '' : 'selected'} title="精准拦截此特定设备的底层输入信号，多设备互不干扰。">设备按键</option>
+                                    <option value="globalKey" ${isGlobalMode ? 'selected' : ''} title="按 AHK 全局键位拦截并吞掉原输入，再替换为你的目标快捷键；不区分具体设备，但只适用于可识别为 AHK 键名的输入。">全局键位</option>
+                                </select>
+                            </div>
+                            ${isGlobalMode ? `
+                                <div class="source-row">
+                                    <div class="source-badge ${row.globalKey ? '' : 'empty'}" id="gk_${i}">${row.globalKey || '未捕获'}</div>
+                                    <button class="btn-capture" onclick="StartListenSourceKey(${i})">捕获</button>
+                                </div>
+                            ` : `
+                                <div class="source-row">
+                                    <div class="source-badge ${row.source ? '' : 'empty'}">${row.source || '未捕获'}</div>
+                                    <button id="btnCap_${i}" class="btn-capture" onclick="StartCapture(${i})">捕获</button>
+                                </div>
+                            `}
+                        </div>
+                        <div class="row-arrow">→</div>
+                        <div style="flex:1">
+                            <div class="label-sm" style="margin-bottom:0; color:var(--text-main);">
+                                目标快捷键<br>
+                                <span style="font-size:11px; font-weight:normal; color:var(--text-muted);">循环触发</span>
+                            </div>
+                        </div>
+                        <label class="switch" style="margin-left:12px" title="启用或停用此映射">
+                            <input type="checkbox" onchange="ToggleEnable(${i}, this.checked)" ${isEnabled ? 'checked' : ''}>
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                    <div class="row-targets">
+                        <div class="step-col">
+                            <div class="label-sm">① 第 1 次</div>
+                            <input type="text" class="hotkey-input" id="hk_${i}_1" value="${row.hk1 || ''}" placeholder="点此录入..." readonly onfocus="StartListenHotkey(${i}, 1)" onclick="StartListenHotkey(${i}, 1)" onblur="StopListenHotkey(${i}, 1)" onkeydown="SuppressListeningKey(event)">
+                        </div>
+                        <div class="step-col">
+                            <div class="label-sm">② 第 2 次</div>
+                            <input type="text" class="hotkey-input" id="hk_${i}_2" value="${row.hk2 || ''}" placeholder="空=重置" readonly onfocus="StartListenHotkey(${i}, 2)" onclick="StartListenHotkey(${i}, 2)" onblur="StopListenHotkey(${i}, 2)" onkeydown="SuppressListeningKey(event)">
+                        </div>
+                        <div class="step-col">
+                            <div class="label-sm">③ 第 3 次</div>
+                            <input type="text" class="hotkey-input" id="hk_${i}_3" value="${row.hk3 || ''}" placeholder="空=重置" readonly onfocus="StartListenHotkey(${i}, 3)" onclick="StartListenHotkey(${i}, 3)" onblur="StopListenHotkey(${i}, 3)" onkeydown="SuppressListeningKey(event)">
+                        </div>
+                    </div>
+                `;
+
+                area.appendChild(rowEl);
+            });
+
+            if (!currentDevice) {
+                const devCount = document.querySelectorAll('.device-item').length - 1;
+                document.getElementById('curDevVidPid').innerText = `共 ${mappingsData.length} 条规则 (${devCount} 个设备)`;
+            }
 
         }
 
